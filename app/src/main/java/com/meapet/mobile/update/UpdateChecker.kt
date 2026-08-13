@@ -13,7 +13,7 @@ import kotlinx.serialization.json.jsonPrimitive
 /**
  * 从 GitHub Releases 检测应用更新。
  *
- * 接口：`GET https://api.github.com/repos/llz121517/mea-pet-mobile/releases/latest`
+ * 接口：`GET <仓库地址>/releases/latest`
  * 仅返回最新的非 draft、非 prerelease 正式版。
  */
 class UpdateChecker(
@@ -65,8 +65,19 @@ class UpdateChecker(
 
     companion object {
         private const val TAG = "UpdateChecker"
-        const val DEFAULT_RELEASES_URL =
-            "https://api.github.com/repos/llz121517/mea-pet-mobile/releases/latest"
+
+        /** 默认发布接口地址：由仓库地址在构建时注入生成。 */
+        val DEFAULT_RELEASES_URL: String = run {
+            val repo = com.meapet.mobile.BuildConfig.GIT_REPO_URL
+                .removePrefix("https://github.com/")
+                .removePrefix("http://github.com/")
+                .removeSuffix("/")
+            if (repo.isBlank()) {
+                "https://api.github.com/repos/llz121517/mea-pet-mobile/releases/latest"
+            } else {
+                "https://api.github.com/repos/$repo/releases/latest"
+            }
+        }
 
         private val json = Json { ignoreUnknownKeys = true }
 

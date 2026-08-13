@@ -43,7 +43,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
@@ -94,6 +93,7 @@ import com.meapet.mobile.viewmodel.SettingsViewModel
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit = {},
+    onExitApp: () -> Unit = {},
     settingsViewModel: SettingsViewModel = viewModel()
 ) {
     val state by settingsViewModel.state.collectAsState()
@@ -529,7 +529,7 @@ fun SettingsScreen(
                     )
                     Text(
                         text = if (umengAgreed)
-                            "已授权：友盟统计 SDK 正在采集匿名使用数据"
+                            "已授权：友盟统计 SDK 正在采集去标识化的使用数据"
                         else
                             "未授权：不会采集任何统计数据，App 正常使用",
                         style = MaterialTheme.typography.bodySmall,
@@ -557,7 +557,7 @@ fun SettingsScreen(
                     title = { Text("取消数据采集授权") },
                     text = {
                         Text(
-                            "取消后友盟统计 SDK 将停止采集数据。需要重启 App 才能完全生效。App 其余功能不受影响。"
+                            "为确保撤回后立即、彻底停止数据采集，取消授权后 App 将自动退出；重新打开即可正常使用，且不会再进行任何统计采集。"
                         )
                     },
                     confirmButton = {
@@ -566,8 +566,9 @@ fun SettingsScreen(
                                 .setAgreed(context, false)
                             umengAgreed = false
                             showRevokeDialog = false
+                            onExitApp()
                         }) {
-                            Text("确认取消")
+                            Text("确认取消并退出")
                         }
                     },
                     dismissButton = {

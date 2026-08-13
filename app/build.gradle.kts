@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-// 从 local.properties 读取友盟 AppKey，与代码隔离
+// 从 local.properties 读取友盟 AppKey 与独特性标识信息，与代码隔离
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) {
@@ -14,6 +14,11 @@ val localProperties = Properties().apply {
     }
 }
 val umengAppKey: String = localProperties.getProperty("umeng.appKey", "") ?: ""
+// 开发者标识 / 仓库地址 / 交流群链接 / 友盟隐私政策链接（开源分叉时按需替换）
+val devName: String = localProperties.getProperty("app.devName", "") ?: ""
+val gitRepoUrl: String = localProperties.getProperty("app.gitRepoUrl", "") ?: ""
+val qqGroupUrl: String = localProperties.getProperty("app.qqGroupUrl", "") ?: ""
+val umengPolicyUrl: String = localProperties.getProperty("app.umengPolicyUrl", "") ?: ""
 
 android {
     namespace = "com.meapet.mobile"
@@ -38,6 +43,11 @@ android {
 
         // 友盟 AppKey 通过 BuildConfig 注入，源码中不硬编码
         buildConfigField("String", "UMENG_APP_KEY", "\"$umengAppKey\"")
+        // 独特性标识信息同样通过 BuildConfig 注入，缺失时保持 _unset 占位（运行时回退默认）
+        buildConfigField("String", "DEV_NAME", "\"$devName\"")
+        buildConfigField("String", "GIT_REPO_URL", "\"$gitRepoUrl\"")
+        buildConfigField("String", "QQ_GROUP_URL", "\"$qqGroupUrl\"")
+        buildConfigField("String", "UMENG_POLICY_URL", "\"$umengPolicyUrl\"")
     }
 
     buildTypes {

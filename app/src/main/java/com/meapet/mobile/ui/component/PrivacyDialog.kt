@@ -111,7 +111,7 @@ fun PrivacyDialog(
                             )
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                text = "本应用集成了友盟+ 统计 SDK，用于收集匿名使用数据（启动次数、使用时长、崩溃信息等），以帮助改进产品质量。SDK 会采集设备标识符（如 OAID）和网络信息。",
+                                text = "本应用集成了友盟+ 统计 SDK，用于收集去标识化的使用数据（启动次数、使用时长等），以帮助改进产品质量。SDK 会采集设备标识符和网络信息。",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -136,7 +136,7 @@ fun PrivacyDialog(
                             )
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                text = "• 同意：开始采集匿名统计数据\n• 不同意：不采集任何数据，App 其余功能不受影响\n• 你可以随时在设置中取消授权",
+                                text = "• 同意：开始采集去标识化的统计数据\n• 不同意：不采集任何数据，App 其余功能不受影响\n• 你可以随时在设置中取消授权（取消后 App 将自动退出）",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

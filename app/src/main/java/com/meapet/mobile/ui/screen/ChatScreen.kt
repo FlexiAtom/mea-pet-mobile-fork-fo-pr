@@ -22,14 +22,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -53,10 +51,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -67,8 +61,10 @@ import com.meapet.mobile.live2d.Live2dDelegate
 import com.meapet.mobile.memory.MemoryType
 import com.meapet.mobile.ui.component.ChatBubble
 import com.meapet.mobile.ui.component.ChatInputBar
+import com.meapet.mobile.ui.component.LinkItem
 import com.meapet.mobile.ui.component.OverlayMenu
 import com.meapet.mobile.viewmodel.ChatViewModel
+import kotlin.time.Duration.Companion.milliseconds
 
 /** 内部页面导航。 */
 private enum class Page { CHAT, SETTINGS, PRIVACY }
@@ -117,7 +113,11 @@ fun ChatScreenContent(
         when (page) {
             Page.SETTINGS -> SettingsScreen(
                 onBack = { currentPage = Page.CHAT },
-                onOpenPrivacyPolicy = { currentPage = Page.PRIVACY }
+                onOpenPrivacyPolicy = { currentPage = Page.PRIVACY },
+                onExitApp = {
+                    // 取消数据采集授权后立即退出，保证本进程内 SDK 不再上报
+                    android.os.Process.killProcess(android.os.Process.myPid())
+                }
             )
 
             Page.PRIVACY -> PrivacyPolicyScreen(
@@ -153,7 +153,7 @@ private fun ChatPage(
         if (showAbout) {
             showDialog = true
         } else if (showDialog) {
-            delay(250)
+            delay(250.milliseconds)
             showDialog = false
         }
     }
@@ -426,14 +426,14 @@ private fun AboutDialog(
                 Spacer(Modifier.height(2.dp))
                 LinkItem(
                     text = "GitHub 仓库",
-                    url = "https://github.com/llz121517/mea-pet-mobile",
+                    url = com.meapet.mobile.framework.AppInfo.gitRepoUrl,
                     uriHandler = uriHandler,
                     style = linkStyle
                 )
                 Spacer(Modifier.height(2.dp))
                 LinkItem(
                     text = "交流 QQ 群",
-                    url = "https://qm.qq.com/q/pD9vpN6zKg",
+                    url = com.meapet.mobile.framework.AppInfo.qqGroupUrl,
                     uriHandler = uriHandler,
                     style = linkStyle
                 )
@@ -485,39 +485,6 @@ private fun AboutDialog(
             }
         }
     }
-}
-
-/**
- * 可点击的超链接文本（浮层内使用）。
- */
-@Composable
-private fun LinkItem(
-    text: String,
-    url: String,
-    uriHandler: androidx.compose.ui.platform.UriHandler,
-    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodySmall
-) {
-    val annotatedString = buildAnnotatedString {
-        pushStringAnnotation(tag = "URL", annotation = url)
-        withStyle(
-            SpanStyle(
-                color = MaterialTheme.colorScheme.primary,
-                textDecoration = TextDecoration.Underline
-            )
-        ) {
-            append(text)
-        }
-        pop()
-    }
-
-    ClickableText(
-        text = annotatedString,
-        style = style.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-        onClick = { offset ->
-            annotatedString.getStringAnnotations("URL", offset, offset)
-                .firstOrNull()?.let { uriHandler.openUri(it.item) }
-        }
-    )
 }
 
 /**

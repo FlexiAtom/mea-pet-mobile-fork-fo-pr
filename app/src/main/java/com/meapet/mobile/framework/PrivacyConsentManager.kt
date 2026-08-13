@@ -43,10 +43,12 @@ object PrivacyConsentManager {
 
     /** 标记用户已做出选择并记录授权状态。 */
     fun setAgreed(context: Context, agreed: Boolean) {
+        // 用同步 commit() 保证写盘完成后再返回：取消授权后会立刻 killProcess，
+        // apply() 的异步落盘可能来不及，导致重启后仍读到旧的授权状态。
         prefs(context).edit()
             .putBoolean(KEY_AGREED, agreed)
             .putBoolean(KEY_USER_CHOSEN, true)
-            .apply()
+            .commit()
         // 同步写入 DataStore 供 Flow 订阅
         kotlinx.coroutines.runBlocking {
             context.appDataStore.edit { it[KEY_DS_AGREED] = agreed }

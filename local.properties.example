@@ -2,3 +2,14 @@
 # 在友盟后台注册 Android 应用后获取：https://mobile.umeng.com/platform/config/apps
 # 将此文件复制为 local.properties（已被 .gitignore 忽略）并填入你的 AppKey
 umeng.appKey=你的友盟AndroidAppKey
+
+# ── 应用独特性标识信息（开源分叉时替换为自己的） ──
+# 以下项均可选；留空或缺失时运行时回退到 MeaPet 原作者的默认值。
+# 开发者名称（用于隐私政策主体等）
+app.devName=llz121517
+# GitHub 仓库主页地址（用于关于弹窗、隐私政策联系入口、更新检查接口）
+app.gitRepoUrl=https://github.com/llz121517/mea-pet-mobile
+# 交流 QQ 群地址（用于关于弹窗）
+app.qqGroupUrl=https://qm.qq.com/q/pD9vpN6zKg
+# 友盟+ 隐私权政策链接（用于隐私政策）
+app.umengPolicyUrl=https://www.umeng.com/page/policy
