@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [待定] - 2026-08-17
+
+### Changed
+
+- **友盟分发渠道名可配置** — `UMENG_CHANNEL` 改为从 `local.properties` 的 `umeng.channel` 读取并注入 `BuildConfig`，按分发来源命名，开源分叉可直接替换；默认 `GitHub`，缺失时行为不变。
+
+---
+
 ## [1.4.0] - 2026-08-17
 
 ### Added

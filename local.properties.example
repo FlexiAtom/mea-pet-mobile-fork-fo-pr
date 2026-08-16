@@ -8,6 +8,8 @@
 # 在友盟后台注册 Android 应用后获取：https://mobile.umeng.com/platform/config/apps
 # 将此文件复制为 local.properties（已被 .gitignore 忽略）并填入你的 AppKey
 umeng.appKey=你的友盟AndroidAppKey
+# 友盟分发渠道名（按分发来源命名；默认 GitHub，分叉时可替换）
+umeng.channel=GitHub
 
 # ── 应用独特性标识信息（开源分叉时替换为自己的） ──
 # 以下项均可选；留空或缺失时运行时回退到 MeaPet 原作者的默认值。

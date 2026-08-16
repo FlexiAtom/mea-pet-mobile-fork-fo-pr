@@ -93,8 +93,8 @@ class MeaPetApplication : Application() {
     companion object {
         private const val TAG = "MeaPetApp"
 
-        /** 友盟渠道名（按分发来源命名）。 */
-        private const val UMENG_CHANNEL = "GitHub"
+        /** 友盟分发渠道名（由 local.properties 的 umeng.channel 注入，按分发来源命名）。 */
+        private val UMENG_CHANNEL: String = BuildConfig.UMENG_CHANNEL
 
         /**
          * 便捷获取容器。

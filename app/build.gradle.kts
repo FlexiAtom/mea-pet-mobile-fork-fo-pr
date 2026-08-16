@@ -14,6 +14,8 @@ val localProperties = Properties().apply {
     }
 }
 val umengAppKey: String = localProperties.getProperty("umeng.appKey", "") ?: ""
+// 友盟分发渠道名（按分发来源命名）
+val umengChannel: String = localProperties.getProperty("umeng.channel", "GitHub") ?: "GitHub"
 // 开发者标识 / 仓库地址 / 交流群链接 / 友盟隐私政策链接（开源分叉时按需替换）
 val devName: String = localProperties.getProperty("app.devName", "") ?: ""
 val gitRepoUrl: String = localProperties.getProperty("app.gitRepoUrl", "") ?: ""
@@ -43,6 +45,8 @@ android {
 
         // 友盟 AppKey 通过 BuildConfig 注入，源码中不硬编码
         buildConfigField("String", "UMENG_APP_KEY", "\"$umengAppKey\"")
+        // 友盟分发渠道名同样通过 BuildConfig 注入（分叉时可替换为自己的渠道）
+        buildConfigField("String", "UMENG_CHANNEL", "\"$umengChannel\"")
         // 独特性标识信息同样通过 BuildConfig 注入，缺失时保持 _unset 占位（运行时回退默认）
         buildConfigField("String", "DEV_NAME", "\"$devName\"")
         buildConfigField("String", "GIT_REPO_URL", "\"$gitRepoUrl\"")
