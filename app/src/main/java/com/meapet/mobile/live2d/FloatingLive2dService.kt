@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.os.Build
@@ -20,15 +21,22 @@ import com.live2d.sdk.cubism.framework.CubismFramework
 import com.live2d.sdk.cubism.framework.math.CubismMatrix44
 import com.live2d.sdk.cubism.framework.rendering.android.CubismOffscreenManagerAndroid
 import com.live2d.sdk.cubism.framework.rendering.android.CubismShaderAndroid
+import com.meapet.mobile.framework.MeaPetApplication
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.sqrt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Foreground service that renders the Live2D model in a transparent floating window.
  * - Drag to move
  * - Pinch to resize
- * - Double-tap to close
+ * - Double-tap to open menu (关闭菜单 / 关闭悬浮窗 / 唤起输入框)
+ * - 输入框发消息走主界面同一 chat 包，回复以气泡显示在人物旁
  */
 class FloatingLive2dService : Service() {
 
@@ -39,6 +47,12 @@ class FloatingLive2dService : Service() {
 
         /** 判定为轻触（而非拖动）的最大位移，单位 dp。 */
         private const val TAP_SLOP_DP = 24f
+
+        /** 连击判定时间窗，ms（两次轻触间隔超过则重新计数）。 */
+        private const val TAP_INTERVAL_MS = 500L
+
+        /** 双击后延迟开菜单的确认时长，ms——留出时间判断是否会有第三击（三击关悬浮窗）。 */
+        private const val TAP_CONFIRM_MS = 250L
 
         /** Whether the overlay is currently active. */
         @Volatile
@@ -83,8 +97,21 @@ class FloatingLive2dService : Service() {
     private var pinchStartW = 0
     private var pinchStartH = 0
 
-    /** 双击关闭的时间戳（毫秒）。 */
+    /** 主线程 Handler（延迟任务：开菜单确认等）。 */
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** 轻触计数与时间戳（区分双击开菜单 / 三击关悬浮窗）。 */
     private var lastTapTime = 0L
+    private var tapCount = 0
+    private val pendingShowMenu = Runnable { showMenu() }
+
+    /** 悬浮窗子窗口相关协程作用域（Main），onDestroy 时取消。 */
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    // ----- 悬浮窗子窗口：菜单 / 输入框 / 气泡回复 -----
+    private var menuWindow: OverlayMenuWindow? = null
+    private var inputWindow: OverlayInputWindow? = null
+    private var bubbleWindow: OverlayBubbleWindow? = null
 
     /** Screen-density conversion cache */
     private var _density = 0f
@@ -114,6 +141,7 @@ class FloatingLive2dService : Service() {
             return
         }
         createFloatingWindow()
+        initOverlayWindows()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -136,6 +164,16 @@ class FloatingLive2dService : Service() {
         isRunning = false
         overlayActive = false
         shuttingDown = true
+        // 收尾子窗口：先取消协程与延迟任务、隐藏输入框（收起键盘），再逐个销毁，
+        // 避免服务销毁后 Handler 任务仍引用已移除的视图
+        serviceScope.cancel()
+        mainHandler.removeCallbacks(pendingShowMenu)
+        inputWindow?.hide()
+        inputWindow = null
+        menuWindow?.destroy()
+        menuWindow = null
+        bubbleWindow?.destroy()
+        bubbleWindow = null
         if (::glSurfaceView.isInitialized) {
             // 先在 GL 线程释放模型的 native 资源。事件在 onPause 之前入队：
             // GLSurfaceView 的 GL 线程按序处理事件队列且优先于暂停处理，
@@ -180,7 +218,7 @@ class FloatingLive2dService : Service() {
         }
         return builder
             .setContentTitle("Live2D Overlay")
-            .setContentText("Drag to move · Pinch to resize · Double-tap to close")
+            .setContentText("Double-tap for menu · Drag to move · Pinch to resize")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setOngoing(true)
             .build()
@@ -237,6 +275,104 @@ class FloatingLive2dService : Service() {
         Log.d(TAG, "Floating window created: ${winWidth}x$winHeight")
     }
 
+    // ================ Overlay sub-windows ================
+
+    private fun initOverlayWindows() {
+        bubbleWindow = OverlayBubbleWindow(this).also { it.setAnchor(anchorRect()) }
+        menuWindow = OverlayMenuWindow(
+            context = this,
+            onCloseOverlay = { stopSelf() },
+            onOpenInput = { toggleInputWindow() }
+        )
+        inputWindow = OverlayInputWindow(this, onSend = ::sendFromOverlay, onClose = { inputWindow?.hide() })
+    }
+
+    /** 当前人物悬浮窗在屏幕上的矩形（位置由 layoutParams 表达）。 */
+    private fun anchorRect(): Rect {
+        val p = layoutParams ?: return Rect()
+        return Rect(p.x, p.y, p.x + p.width, p.y + p.height)
+    }
+
+    /** 人物悬浮窗被拖动/缩放后，同步气泡与菜单的位置。 */
+    private fun repositionOverlayAnchors() {
+        val r = anchorRect()
+        bubbleWindow?.setAnchor(r)
+        menuWindow?.takeIf { it.isVisible }?.reposition(r)
+    }
+
+    private fun showMenu() {
+        menuWindow?.show(anchorRect())
+    }
+
+    /**
+     * 轻触人物悬浮窗：
+     * - 菜单开着 → 任意轻触收起菜单；
+     * - 双击（[TAP_INTERVAL_MS] 内两击）→ 延迟确认后开菜单；
+     * - 快速三连击 → 直接关闭整个悬浮窗（无需打开菜单）。
+     */
+    private fun onOverlayTap() {
+        val now = System.currentTimeMillis()
+
+        // 菜单开着：任何轻触直接收起，并重置连击计数
+        if (menuWindow?.isVisible == true) {
+            hideMenu()
+            lastTapTime = now
+            tapCount = 1
+            return
+        }
+
+        // 连击计数（间隔超过 TAP_INTERVAL_MS 视为新一轮）
+        if (now - lastTapTime > TAP_INTERVAL_MS) {
+            tapCount = 1
+        } else {
+            tapCount++
+        }
+        lastTapTime = now
+
+        when {
+            tapCount == 2 -> {
+                // 等片刻确认不是第三击再开菜单，避免与"三击关闭"冲突
+                mainHandler.removeCallbacks(pendingShowMenu)
+                mainHandler.postDelayed(pendingShowMenu, TAP_CONFIRM_MS)
+            }
+            tapCount >= 3 -> {
+                mainHandler.removeCallbacks(pendingShowMenu)
+                Log.d(TAG, "Triple-tap: closing overlay")
+                stopSelf()
+            }
+        }
+    }
+
+    private fun hideMenu() {
+        menuWindow?.hide()
+    }
+
+    /** 输入框可见则隐藏，隐藏则显示（菜单项"唤起输入框"的 toggle 语义）。 */
+    private fun toggleInputWindow() {
+        if (inputWindow?.isVisible == true) inputWindow?.hide() else inputWindow?.show(anchorRect())
+    }
+
+    /** 从悬浮窗输入框发送消息：走主界面同一个 chat 包，回复以气泡展示。 */
+    private fun sendFromOverlay(text: String) {
+        val container = (applicationContext as? MeaPetApplication)?.container ?: return
+        inputWindow?.setSending(true)
+        serviceScope.launch {
+            // sendMessage 内部已 withContext(IO)，返回后回到 Main 直接更新 UI
+            val result = container.chatService.sendMessage(text)
+            inputWindow?.setSending(false)
+            result.fold(
+                onSuccess = { (_, assistant) ->
+                    inputWindow?.clearText()
+                    bubbleWindow?.addBubble(assistant.content)
+                },
+                onFailure = { e ->
+                    Log.w(TAG, "Overlay send failed: ${e.message}")
+                    bubbleWindow?.addBubble("发送失败：${e.message ?: "未知错误"}")
+                }
+            )
+        }
+    }
+
     // ================ Multi-touch handling ================
 
     private fun handleTouch(event: MotionEvent) {
@@ -273,6 +409,7 @@ class FloatingLive2dService : Service() {
                     params.width = newW
                     params.height = newH
                     windowManager?.updateViewLayout(glSurfaceView, params)
+                    repositionOverlayAnchors()
                 } else {
                     // --- DRAG: move window ---
                     // 钳制在屏幕范围内（留出窗口自身尺寸），防止拖出屏幕后找不回
@@ -282,6 +419,7 @@ class FloatingLive2dService : Service() {
                     params.y = (dragStartY + (event.rawY - dragStartRawY).toInt())
                         .coerceIn(0, (dm.heightPixels - params.height).coerceAtLeast(0))
                     windowManager?.updateViewLayout(glSurfaceView, params)
+                    repositionOverlayAnchors()
                 }
             }
 
@@ -303,16 +441,12 @@ class FloatingLive2dService : Service() {
             }
 
             MotionEvent.ACTION_UP -> {
-                // 双击关闭（500ms 内两次轻触）
+                // 轻触处理：双击开菜单 / 三击关悬浮窗；菜单开着时任意轻触收起
                 pinchStartDist = 0f
                 val dx = event.rawX - dragStartRawX
                 val dy = event.rawY - dragStartRawY
                 if (sqrt((dx * dx + dy * dy).toDouble()) < TAP_SLOP_DP * density) {
-                    val now = System.currentTimeMillis()
-                    if (now - lastTapTime < 500L) {
-                        stopSelf()  // 双击关闭
-                    }
-                    lastTapTime = now
+                    onOverlayTap()
                 }
             }
         }

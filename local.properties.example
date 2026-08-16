@@ -1,3 +1,9 @@
+## This file must *NOT* be checked into Version Control Systems,
+# as it contains information specific to your local configuration.
+
+## 这个文件 *不* 应该提交到版本控制系统，
+# 因为它包含你本地配置的具体信息。
+
 # 友盟+ 统计 SDK AppKey
 # 在友盟后台注册 Android 应用后获取：https://mobile.umeng.com/platform/config/apps
 # 将此文件复制为 local.properties（已被 .gitignore 忽略）并填入你的 AppKey

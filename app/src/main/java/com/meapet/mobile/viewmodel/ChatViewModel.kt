@@ -141,6 +141,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * 重新从会话历史加载消息列表。
+     *
+     * 悬浮窗期间对话发生在共享的 [ChatService]（同一 ConversationManager）里，
+     * 本 ViewModel 的内存状态不会自动同步；从悬浮窗回到前台时调用一次，把最新
+     * 历史合并进列表（保留界面里的临时系统气泡）。发送中不重载，交由在途任务更新。
+     */
+    fun reloadHistory() {
+        if (_state.value.isLoading) return
+        val history = chatService.getHistory()
+        if (history.isEmpty()) return
+        _state.update { current ->
+            val historyIds = history.map { it.id }.toSet()
+            val ephemeral = current.messages.filter { it.role == ChatRole.system && it.id !in historyIds }
+            current.copy(messages = history + ephemeral)
+        }
+    }
+
+    /**
      * 处理 UI 事件。
      */
     fun onEvent(event: ChatEvent) {

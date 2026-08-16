@@ -99,6 +99,7 @@ dependencies {
     // Kotlinx Serialization (for OpenAI client)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
 
     // 友盟+ 统计 SDK (U-APP)
     implementation(libs.umeng.umsdk.common)  // 必选：统计核心

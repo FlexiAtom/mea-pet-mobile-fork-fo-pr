@@ -154,6 +154,15 @@ class SettingsManager(context: Context) {
     fun isAutoSummaryEnabled(): Boolean = currentPrefs()[KEY_ENABLE_AUTO_SUMMARY] ?: SettingsKeys.Defaults.ENABLE_AUTO_SUMMARY
     fun getSummaryInterval(): Int = currentPrefs()[KEY_SUMMARY_INTERVAL] ?: SettingsKeys.Defaults.SUMMARY_INTERVAL
 
+    /** 主题模式（"system" | "light" | "dark"）。 */
+    fun getThemeMode(): String = currentPrefs()[KEY_THEME_MODE] ?: SettingsKeys.Defaults.THEME_MODE
+
+    /** 是否启用动态取色（Material You）。 */
+    fun isDynamicColorEnabled(): Boolean = currentPrefs()[KEY_ENABLE_DYNAMIC_COLOR] ?: SettingsKeys.Defaults.ENABLE_DYNAMIC_COLOR
+
+    /** 颜色预设 ID（"default" | "ocean" | ...）。 */
+    fun getColorPreset(): String = currentPrefs()[KEY_COLOR_PRESET] ?: SettingsKeys.Defaults.COLOR_PRESET
+
     /** 距上次摘要已进行的对话轮数（跨进程存活，见 [SettingsKeys.EXCHANGE_COUNT]）。 */
     fun getExchangeCount(): Int = currentPrefs()[KEY_EXCHANGE_COUNT] ?: 0
 
