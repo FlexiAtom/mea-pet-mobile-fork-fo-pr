@@ -109,8 +109,16 @@ class OpenAiCompatibleClient(
         engine.close()
     }
 
+    /**
+     * API Key 为空时不带 `Authorization` 头——本地模型（Ollama / LM Studio 等）通常
+     * 不需要鉴权，未填 Key 也能工作；云端服务缺 Key 会返回 401，由上层给出友好提示。
+     */
     private fun authHeaders(): Map<String, String> =
-        mapOf("Authorization" to "Bearer $apiKey")
+        if (apiKey.isBlank()) {
+            emptyMap()
+        } else {
+            mapOf("Authorization" to "Bearer $apiKey")
+        }
 
     private suspend fun executeExpectText(request: HttpRequest): String {
         val response = executeExpectOk(request)
@@ -120,10 +128,11 @@ class OpenAiCompatibleClient(
     private suspend fun executeExpectOk(request: HttpRequest): HttpResponse {
         val response = engine.execute(request)
         if (response.statusCode !in 200..299) {
+            // 用面向用户的友好文案（401 → 提示填写 API Key）
             throw ApiException(
                 statusCode = response.statusCode,
                 responseBody = response.bodyAsText(),
-                message = "API request failed with status ${response.statusCode}"
+                message = ApiException.friendlyMessage(response.statusCode)
             )
         }
         return response

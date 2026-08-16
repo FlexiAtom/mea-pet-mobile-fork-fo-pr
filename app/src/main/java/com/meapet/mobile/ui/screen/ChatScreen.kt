@@ -40,6 +40,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.collectAsState
@@ -50,10 +51,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.meapet.mobile.chat.ChatEvent
 import com.meapet.mobile.chat.MemoryDialogUi
@@ -80,6 +84,20 @@ fun ChatScreenContent(
     chatViewModel: ChatViewModel = viewModel()
 ) {
     var currentPage by remember { mutableStateOf(Page.CHAT) }
+
+    // 后台切前台时固定刷新一次聊天历史：悬浮窗期间对话发生在共享的会话里，
+    // 主界面内存状态不会自动同步。ON_RESUME 每次前台都会触发（首次启动时
+    // observer 已在 RESUMED 之后注册，由 ViewModel 初始化加载兜底）。
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                chatViewModel.reloadHistory()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // 在设置页/隐私页时拦截系统返回键 → 回到上一级
     BackHandler(enabled = currentPage == Page.SETTINGS) {

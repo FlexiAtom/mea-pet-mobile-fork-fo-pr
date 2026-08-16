@@ -16,7 +16,6 @@ import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
-import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -32,7 +31,6 @@ import com.meapet.mobile.live2d.Live2dDelegate
 import com.meapet.mobile.live2d.Live2dRenderer
 import com.meapet.mobile.ui.screen.ChatScreenContent
 import com.meapet.mobile.ui.theme.MeaPetTheme
-import com.meapet.mobile.viewmodel.ChatViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
@@ -54,9 +52,6 @@ class MainActivity : ComponentActivity() {
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     /** 等待悬浮窗 Service 完全停止后再恢复本 Activity GL 渲染的轮询任务。 */
     private var resumeGate: Runnable? = null
-
-    /** 聊天 ViewModel（与 Compose 里 viewModel() 共享同一实例）。 */
-    private val chatViewModel: ChatViewModel by viewModels()
 
     companion object {
         private const val TAG = "MainActivity"
@@ -196,8 +191,6 @@ class MainActivity : ComponentActivity() {
             if (FloatingLive2dService.overlayActive) {
                 FloatingLive2dService.overlayActive = false
                 FloatingLive2dService.stop(this)
-                // 悬浮窗期间聊的内容在共享会话里，回到主界面刷新一次列表
-                chatViewModel.reloadHistory()
             }
         } catch (e: Exception) {
             Log.e(TAG, "onStart error: ${e.message}")

@@ -12,7 +12,7 @@ Android 上的 Live2D AI 桌宠：在主页与系统悬浮窗里渲染 Live2D �
 - **AI 聊天** — OpenAI 兼容 API（可自建中转），多轮对话、System Prompt、记忆上下文注入；聊天记录本地持久化，重启不丢
 - **本地记忆** — 由大模型在对话中自主判断该记什么（事实 / 特质 / 短期），并按设定轮次自动摘要为长期记忆；事实与特质永久保留，可在首页菜单「查看记忆」中查看与删除
 - **多主题配色** — Material You 动态取色 + 多套预设色板，支持浅色 / 深色 / 跟随系统
-- **悬浮窗模式** — 前台 Service 浮窗常驻，支持拖拽、捏合缩放、双击关闭
+- **悬浮窗模式** — 前台 Service 浮窗常驻，拖拽 / 捏合缩放；双击唤起悬浮菜单（关闭悬浮窗 / 唤起输入），快速三击直接关闭；悬浮窗内可直接输入聊天，AI 回复以带尾巴的气泡显示在人物旁
 - **检测更新** — 启动静默检查 GitHub Releases；关于页可手动检测
 
 ## 开始使用
@@ -33,7 +33,7 @@ Android 上的 Live2D AI 桌宠：在主页与系统悬浮窗里渲染 Live2D �
 从 [Releases](https://github.com/llz121517/mea-pet-mobile/releases) 页面下载最新的 APK 直接安装，无需自行编译。
 
 ```bash
-adb install MeaPet-v1.3.0.apk
+adb install MeaPet-v1.4.0.apk
 ```
 
 #### 方式二：手动编译
@@ -78,7 +78,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 | 字段 | 说明 |
 |------|------|
-| **API Key** | API 密钥 |
+| **API Key** | API 密钥。**可留空**——本地模型（Ollama / LM Studio 等）无需鉴权；云端服务缺 Key 会在请求时提示填写 |
 | **API 地址** | OpenAI 兼容的 API 基础 URL（可带或不带 `/v1`，客户端会自动规范化） |
 | **模型** | 使用的模型名称（如 `gpt-4o-mini`）；也可点「获取模型列表」从端点拉取后点选 |
 | **Temperature** | 生成温度 (0.0–2.0) |

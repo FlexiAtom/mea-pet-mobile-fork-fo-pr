@@ -222,10 +222,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      * 再用临时客户端请求 `/v1/models`，避免依赖 lazy 初始化时机。
      */
     fun fetchModels(apiKey: String, apiUrl: String) {
-        if (apiKey.isBlank()) {
-            _state.update { it.copy(modelsError = "请先填写 API Key") }
-            return
-        }
+        // 本地模型（Ollama / LM Studio 等）不需要 API Key，允许留空直接拉取
         if (apiUrl.isBlank()) {
             _state.update { it.copy(modelsError = "请先填写 API 地址") }
             return
@@ -276,7 +273,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 },
                 onFailure = { e ->
                     val message = when (e) {
-                        is ApiException -> "请求失败 (${e.statusCode})"
+                        // ApiException.message 已是友好提示（401 → 提示填 Key）
+                        is ApiException -> e.message
                         else -> e.message?.takeIf { it.isNotBlank() } ?: "获取模型列表失败"
                     }
                     _state.update {

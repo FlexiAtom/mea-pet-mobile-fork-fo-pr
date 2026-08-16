@@ -94,6 +94,9 @@ class OverlayMenuWindow(
     /** 当前锚点（人物悬浮窗矩形）；null 表示尚未定位。 */
     private var anchor: Rect? = null
 
+    /** 是否处于"显示中"状态（入场动画为 post 延迟执行，用此标记避免被 hide 打断后仍播放）。 */
+    private var showing = false
+
     private val autoHideRunnable = Runnable { hide() }
 
     init {
@@ -131,27 +134,57 @@ class OverlayMenuWindow(
     /** 在人物悬浮窗侧面显示菜单并启动自动隐藏计时。 */
     fun show(anchorRect: Rect) {
         anchor = anchorRect
+        showing = true
         // 先加全屏遮罩，再加菜单面板 → 菜单在上，遮罩兜住面板外的点击
         if (!scrimView.isAttachedToWindow) {
             try { windowManager.addView(scrimView, scrimParams) } catch (_: Exception) {}
         }
         if (!isVisible) {
+            // 入场初值：0.85 中心缩放 + 透明（对齐关于卡片动画）
+            rootView.scaleX = 0.85f
+            rootView.scaleY = 0.85f
+            rootView.alpha = 0f
             try { windowManager.addView(rootView, params) } catch (e: Exception) {
                 Log.w(TAG, "Failed to show menu window: ${e.message}")
             }
         }
         place()
+        // 等布局完成拿到真实宽高（pivot 居中）再播入场动画
+        rootView.post {
+            if (showing && rootView.isAttachedToWindow) {
+                rootView.pivotX = rootView.width / 2f
+                rootView.pivotY = rootView.height / 2f
+                rootView.animate().cancel()
+                rootView.animate()
+                    .scaleX(1f).scaleY(1f).alpha(1f)
+                    .setDuration(200)
+                    .start()
+            }
+        }
         resetAutoHide()
     }
 
-    /** 立即隐藏菜单（同时移除遮罩）。 */
+    /** 隐藏菜单（同时移除遮罩）：退场播放中心缩放 + 淡出动画，播完再移除窗口。 */
     fun hide() {
         mainHandler.removeCallbacks(autoHideRunnable)
-        if (isVisible) {
-            try { windowManager.removeView(rootView) } catch (_: Exception) {}
-        }
+        showing = false
+        // 遮罩不参与动画，立即移除（它正在拦截触摸）
         if (scrimView.isAttachedToWindow) {
             try { windowManager.removeView(scrimView) } catch (_: Exception) {}
+        }
+        if (isVisible) {
+            rootView.pivotX = rootView.width / 2f
+            rootView.pivotY = rootView.height / 2f
+            rootView.animate().cancel()
+            rootView.animate()
+                .scaleX(0.85f).scaleY(0.85f).alpha(0f)
+                .setDuration(200)
+                .withEndAction {
+                    if (rootView.isAttachedToWindow) {
+                        try { windowManager.removeView(rootView) } catch (_: Exception) {}
+                    }
+                }
+                .start()
         }
     }
 
@@ -174,6 +207,9 @@ class OverlayMenuWindow(
         val w = rootView.width
         val h = rootView.height
         if (w <= 0 || h <= 0) return
+        // 中心缩放动画的锚点
+        rootView.pivotX = w / 2f
+        rootView.pivotY = h / 2f
         val dm = rootView.resources.displayMetrics
         val gap = dp(GAP_DP)
 
