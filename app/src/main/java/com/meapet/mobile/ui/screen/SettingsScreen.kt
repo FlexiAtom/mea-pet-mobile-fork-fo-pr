@@ -87,6 +87,7 @@ import com.meapet.mobile.ui.theme.THEME_PRESETS
 import com.meapet.mobile.ui.theme.isDarkTheme
 import com.meapet.mobile.viewmodel.SettingsUiState
 import com.meapet.mobile.viewmodel.SettingsViewModel
+import com.meapet.mobile.settings.SettingsKeys
 
 // ── 视觉常量（语义命名，避免魔法数字） ──────────────────
 
@@ -447,16 +448,35 @@ private fun SystemPromptSection(
     local: SettingsLocalState
 ) {
     SectionTitle("System Prompt")
-    OutlinedTextField(
-        value = local.systemPrompt,
-        onValueChange = { local.systemPrompt = it },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(120.dp)
-            .saveOnFocusChange { viewModel.saveSystemPrompt(local.systemPrompt) },
-        maxLines = 6
-    )
+
+    Column {
+        OutlinedTextField(
+            value = local.systemPrompt,
+            onValueChange = { local.systemPrompt = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .saveOnFocusChange { viewModel.saveSystemPrompt(local.systemPrompt) },
+            maxLines = 6
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        // ★ 新增：恢复默认按钮
+        OutlinedButton(
+            onClick = {
+                // 1. 立即更新本地编辑状态（文本框内容瞬间变化）
+                local.systemPrompt = SettingsKeys.Defaults.SYSTEM_PROMPT
+                // 2. 异步写入 DataStore
+                viewModel.resetSystemPrompt()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("恢复默认")
+        }
+    }
 }
+
 
 /** 记忆系统：开关 + 摘要轮次滑杆。 */
 @Composable

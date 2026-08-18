@@ -163,6 +163,13 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    /** 将 System Prompt 恢复为默认值并持久化。 */
+    fun resetSystemPrompt() {
+        viewModelScope.launch {
+            settingsManager.setSystemPrompt(SettingsKeys.Defaults.SYSTEM_PROMPT)
+        }
+    }
+
     fun updateTemperature(temp: Double) {
         viewModelScope.launch { settingsManager.setTemperature(temp) }
     }
