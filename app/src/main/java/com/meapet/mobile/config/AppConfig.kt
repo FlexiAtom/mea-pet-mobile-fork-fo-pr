@@ -24,8 +24,8 @@ package com.meapet.mobile.config
  * @property appVersion 应用版本名
  */
 data class AppConfig(
-    val defaultApiUrl: String = "https://api.openai.com",
-    val defaultModel: String = "gpt-4o-mini",
+    val defaultApiUrl: String = "https://api.deepseek.com",
+    val defaultModel: String = "deepseek-v4-flash",
     val maxHistoryMessages: Int = 35,
     val historyTrimBatch: Int = 8,
     val memorySummaryModel: String? = null,

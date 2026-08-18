@@ -30,8 +30,8 @@ object SettingsKeys {
 
     /** 合理的默认值。 */
     object Defaults {
-        const val API_URL = "https://api.openai.com/v1"
-        const val MODEL = "gpt-4o-mini"
+        const val API_URL = "https://api.deepseek.com/v1"
+        const val MODEL = "deepseek-v4-flash"
         const val TEMPERATURE = 0.7
         const val MAX_TOKENS = 4096
         const val ENABLE_MEMORY = true

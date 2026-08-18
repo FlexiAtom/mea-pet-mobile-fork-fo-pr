@@ -107,7 +107,8 @@ class MemoryService(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to apply memory op: $op", e)
+                // 只记操作类型，不输出 $op（其 content 为记忆内容，属用户隐私，禁止进日志）
+                Log.w(TAG, "Failed to apply memory op: ${op::class.simpleName}", e)
             }
         }
         if (ops.isNotEmpty()) Log.i(TAG, "Applied $applied/${ops.size} memory ops")

@@ -52,7 +52,7 @@ data class SettingsUiState(
     val modelsError: String? = null
 )
 
-class SettingsViewModel(application: Application) : AndroidViewModel(application) {
+open class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val container = MeaPetApplication.from(application)
     private val settingsManager: SettingsManager = container.settingsManager
@@ -74,7 +74,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             enableMemory = settingsManager.isMemoryEnabled(),
             enableAutoSummary = settingsManager.isAutoSummaryEnabled(),
             summaryInterval = settingsManager.getSummaryInterval(),
-            privacyAgreed = PrivacyConsentManager.isAgreed(getApplication())
+            privacyAgreed = isPrivacyAgreed()
         )
     }
 
@@ -96,12 +96,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         subscribe(settingsManager.colorPresetFlow) { s, p -> s.copy(colorPreset = p) }
 
         // 隐私授权状态（响应式订阅：同意/撤销后 UI 即时反映）
-        subscribe(PrivacyConsentManager.agreedFlow(application)) { s, agreed ->
+        subscribe(privacyAgreedFlow()) { s, agreed ->
             s.copy(privacyAgreed = agreed)
         }
 
         // 从 PackageManager 读取版本号（统一实现见 core.AppInfo）
-        _state.update { it.copy(appVersion = AppInfo.readVersion(getApplication())) }
+        _state.update { it.copy(appVersion = readAppVersion()) }
     }
 
     /**
@@ -115,6 +115,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             flow.collect { value -> _state.update { reducer(it, value) } }
         }
     }
+
+    // ── 静态依赖（可被测试 override，避免单测依赖 DataStore / PackageManager） ──
+
+    /** 隐私授权状态流（测试 override 返回假流）。 */
+    protected open fun privacyAgreedFlow(): Flow<Boolean> = PrivacyConsentManager.agreedFlow(getApplication())
+
+    /** 用户当前是否已授权友盟采集（测试 override 返回假值）。 */
+    protected open fun isPrivacyAgreed(): Boolean = PrivacyConsentManager.isAgreed(getApplication())
+
+    /** 当前版本号（测试 override 返回假值）。 */
+    protected open fun readAppVersion(): String = AppInfo.readVersion(getApplication())
 
     // ── 更新方法 ──────────────────────────────────────
 

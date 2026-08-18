@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **气泡调度测试** — 新增 `SystemBubblePolicy` 纯策略类与 9 个 JVM 单元测试，覆盖寿命扣减、扣减上限与封底规则。
 - **悬浮窗渲染 / 手势拆分** — 从 `FloatingLive2dService` 拆出 `Live2dOverlayRenderer`（GL 渲染，回调解耦）与 `OverlayTouchHandler`（拖动 / 捏合 / 轻触判定），Service 只负责生命周期与窗口编排。
 - **聊天失败重试入口** — 聊天页错误 Snackbar 新增「重试」按钮，可重发上一条失败消息（`RetryLastMessage` 事件此前仅存在于 ViewModel 层、UI 未接线）。
+- **ViewModel 单元测试** — 新增 `ChatViewModelTest`（6 用例）与 `SettingsViewModelTest`（3 用例），覆盖事件分发 → 服务调用 → 状态更新链路；`SettingsViewModel` 静态依赖（隐私 / 版本号）改为可覆写的 protected 方法便于隔离。
+- **Release 构建开启 R8 优化** — `optimization { enable = true }` + 资源收缩；新增 `proguard-rules.pro`，保留 Live2D / 友盟 / kotlinx.serialization 的反射与序列化类，防止混淆后运行崩溃。
 
 ### Changed
 
@@ -30,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`ChatScreen` 结构** — 拆分出 `MessageList`；Live2D 触摸分区开关改经 `ChatViewModel` 访问领域单例；版本号读取统一到 `AppInfo.readVersion`（消除 AppContainer / SettingsViewModel / ChatScreen 三处重复）；Bilibili 模型来源 URL 常量化；进程退出封装为 `exitAppSilently()`。
 - **主题判断统一** — 新增 `core/ThemeUtil` 主题解析纯逻辑（`resolveDarkTheme` / `isSystemNight` / context 版 `isDarkTheme`），Compose 场景薄封装于 `ui.theme`；消除 `live2d.overlay → ui.theme` 领域层反向依赖 UI 的分层违规。
 - **隐私调用归位** — 设置页隐私授权读取 / 撤销改经 `SettingsViewModel`，UI 不再直接触达 `PrivacyConsentManager`。
+- **默认 API 配置改为 DeepSeek** — 新装 / 重置用户的默认端点改为 `https://api.deepseek.com/v1`、默认模型改为 `deepseek-v4-flash`（`SettingsKeys.Defaults` 与输入框占位同步）；已保存配置的老用户不受影响。
+- **版本号读取统一** — `AppContainer` / `SettingsViewModel` / `ChatScreen` 三处重复的 PackageManager 读取收敛到 `AppInfo.readVersion`。
+- **静态分析与告警清理** — 修正 manifest（scheme 小写、弃用 API 标记、前台服务 targetApi）、OverlayPalette 壁纸取色 API 27 门禁、删除未使用的 import / 函数 / 属性（`reloadRenderer` / `getModelSetting` / `ChatUiState.isError` 等）、抑制「有意为之」的 deprecated / 静态引用告警；Gradle 构建显式声明本机 JDK 21 路径（解决 IDE 同步失败导致的满屏报红）。
 
 ### Fixed
 
@@ -37,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`!!` 断言全部消除** — 移除 `Live2dModel` / `Live2dView` / `Live2dManager` / `FloatingLive2dService` 共 46 处 `!!`，改安全调用 + 早退 / 局部非空绑定。
 - **协程取消被吞** — `SettingsViewModel.fetchModels`、`UpdateChecker.check` 在协程内 `catch (Exception)` 会吞掉 `CancellationException` 导致取消失效，补前置重抛。
 - **渲染状态复合判断竞态** — `Live2dDelegate` 对 `wasActive && !overlayActive` 的两次独立读取非原子，改走 `consumeShaderResetRequest()` 原子消费。
+- **记忆操作失败日志泄露内容** — `MemoryService` 应用记忆操作失败时会把整个 `MemoryOp`（含记忆正文）打进 Logcat，违反「对话内容不进日志」约定；改为只记录操作类型。
 
 ---
 

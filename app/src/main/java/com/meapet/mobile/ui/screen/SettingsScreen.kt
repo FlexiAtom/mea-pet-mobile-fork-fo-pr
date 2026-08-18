@@ -283,7 +283,7 @@ private fun ApiConfigSection(
             .fillMaxWidth()
             .saveOnFocusChange { viewModel.saveApiUrl(local.apiUrl) },
         singleLine = true,
-        placeholder = { Text("https://api.openai.com/v1") }
+        placeholder = { Text("https://api.deepseek.com/v1") }
     )
 }
 
@@ -305,7 +305,7 @@ private fun ModelParamsSection(
             .fillMaxWidth()
             .saveOnFocusChange { viewModel.saveModel(local.model) },
         singleLine = true,
-        placeholder = { Text("gpt-4o-mini") }
+        placeholder = { Text("deepseek-v4-flash") }
     )
 
     Spacer(Modifier.height(8.dp))
