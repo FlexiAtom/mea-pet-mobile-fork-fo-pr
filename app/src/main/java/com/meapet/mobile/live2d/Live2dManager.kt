@@ -41,6 +41,9 @@ class Live2dManager private constructor() {
         }
     }
 
+    /** GL 线程写入（loadModel/resetModel），UI 线程可能读取（onUpdate 经 Live2dView.render）。
+     *  @Volatile 保证跨线程可见性，避免读到过期引用。 */
+    @Volatile
     var model: Live2dModel? = null
         private set
 

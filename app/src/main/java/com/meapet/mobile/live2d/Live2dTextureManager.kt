@@ -54,7 +54,18 @@ class Live2dTextureManager {
         return info
     }
 
+    /**
+     * 释放全部纹理的 GL 资源并清空缓存。
+     *
+     * 必须在 GL 线程调用（有有效 EGL 上下文时）。旧实现只 `clear()` 列表而不调
+     * `glDeleteTextures`：GL 上下文销毁时资源会随上下文释放，但若在存活上下文中
+     * 反复切模型/重建，列表里的纹理 id 会累积泄漏 GPU 内存。
+     */
     fun releaseInvalidTextures() {
+        if (textures.isNotEmpty()) {
+            val ids = IntArray(textures.size) { textures[it].id }
+            GLES20.glDeleteTextures(ids.size, ids, 0)
+        }
         textures.clear()
     }
 

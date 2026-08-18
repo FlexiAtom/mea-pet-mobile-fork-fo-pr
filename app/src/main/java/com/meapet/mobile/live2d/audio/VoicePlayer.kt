@@ -34,20 +34,22 @@ class VoicePlayer(
     }
 
     fun play(filename: String) {
-        try {
-            stop()
-            val afd: AssetFileDescriptor = context.assets.openFd("$voiceDir/$filename")
-            player = MediaPlayer().apply {
-                setDataSource(afd)
-                setOnCompletionListener { release() }
-                setOnErrorListener { _, what, extra ->
-                    Log.w(TAG, "MediaPlayer error: $what / $extra"); true
+        // fd 必须及时关闭：setDataSource 读取完成后 fd 不再被持有，开着会随播放次数累积泄漏
+        context.assets.openFd("$voiceDir/$filename").use { afd ->
+            try {
+                stop()
+                player = MediaPlayer().apply {
+                    setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                    setOnCompletionListener { release() }
+                    setOnErrorListener { _, what, extra ->
+                        Log.w(TAG, "MediaPlayer error: $what / $extra"); true
+                    }
+                    prepare()
+                    start()
                 }
-                prepare()
-                start()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to play $filename", e)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to play $filename", e)
         }
     }
 

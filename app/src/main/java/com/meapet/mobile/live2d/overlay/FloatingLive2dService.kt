@@ -102,7 +102,10 @@ class FloatingLive2dService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Live2dRenderState.setWasActive(false)
+        // shuttingDown 是共享 StateFlow（全局），上次关闭时置位过；新 Service 必须重置，
+        // 否则渲染器每帧开头的 shuttingDown 检查恒为 true → 模型永不加载（透明僵尸窗）
+        Live2dRenderState.setShuttingDown(false)
+        Live2dRenderState.setWasActive(true)
         Live2dRenderState.setOverlayActive(true)
         Live2dRenderState.setRunning(true)
         // 提供 application context，Activity 已销毁时悬浮窗仍能加载模型资源

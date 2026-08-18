@@ -35,6 +35,16 @@ class Live2dSprite(
     private var maxWidth = 0
     private var maxHeight = 0
 
+    // 预分配并复用的顶点缓冲（位置 8 float + UV 8 float），避免每帧分配堆外内存。
+    // 仅在 GL 线程使用，无需额外同步。
+    private val positionVertex = FloatArray(8)
+    private val posBuf: FloatBuffer = ByteBuffer.allocateDirect(8 * 4)
+        .order(ByteOrder.nativeOrder())
+        .asFloatBuffer()
+    private val uvBuf: FloatBuffer = ByteBuffer.allocateDirect(8 * 4)
+        .order(ByteOrder.nativeOrder())
+        .asFloatBuffer()
+
     fun renderImmediate(textureId: Int, uvVertex: FloatArray) {
         if (!valid || maxWidth <= 0 || maxHeight <= 0) return
 
@@ -46,23 +56,15 @@ class Live2dSprite(
         // Normalized device coordinates for the quad
         val w2 = maxWidth * 0.5f
         val h2 = maxHeight * 0.5f
-        val positionVertex = floatArrayOf(
-            (rect.right - w2) / w2, (rect.up - h2) / h2,
-            (rect.left - w2) / w2, (rect.up - h2) / h2,
-            (rect.left - w2) / w2, (rect.down - h2) / h2,
-            (rect.right - w2) / w2, (rect.down - h2) / h2
-        )
+        positionVertex[0] = (rect.right - w2) / w2; positionVertex[1] = (rect.up - h2) / h2
+        positionVertex[2] = (rect.left - w2) / w2;  positionVertex[3] = (rect.up - h2) / h2
+        positionVertex[4] = (rect.left - w2) / w2;  positionVertex[5] = (rect.down - h2) / h2
+        positionVertex[6] = (rect.right - w2) / w2; positionVertex[7] = (rect.down - h2) / h2
 
-        val posBuf = ByteBuffer.allocateDirect(positionVertex.size * 4)
-            .order(ByteOrder.nativeOrder())
-            .asFloatBuffer()
-            .apply { put(positionVertex); position(0) }
+        posBuf.clear(); posBuf.put(positionVertex); posBuf.position(0)
         GLES20.glVertexAttribPointer(positionLocation, 2, GLES20.GL_FLOAT, false, 0, posBuf)
 
-        val uvBuf = ByteBuffer.allocateDirect(uvVertex.size * 4)
-            .order(ByteOrder.nativeOrder())
-            .asFloatBuffer()
-            .apply { put(uvVertex); position(0) }
+        uvBuf.clear(); uvBuf.put(uvVertex); uvBuf.position(0)
         GLES20.glVertexAttribPointer(uvLocation, 2, GLES20.GL_FLOAT, false, 0, uvBuf)
 
         GLES20.glUniform4f(
