@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -59,9 +60,10 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.meapet.mobile.chat.ChatEvent
+import com.meapet.mobile.viewmodel.ChatEvent
+import com.meapet.mobile.chat.ChatUiState
 import com.meapet.mobile.chat.MemoryDialogUi
-import com.meapet.mobile.live2d.Live2dDelegate
+import com.meapet.mobile.core.AppInfo
 import com.meapet.mobile.memory.MemoryType
 import com.meapet.mobile.ui.component.ChatBubble
 import com.meapet.mobile.ui.component.ChatInputBar
@@ -72,6 +74,9 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /** 内部页面导航。 */
 private enum class Page { CHAT, SETTINGS, PRIVACY }
+
+/** 关于卡片中的 Live2D 模型来源链接。 */
+private const val LIVE2D_MODEL_SOURCE_URL = "https://www.bilibili.com/video/BV1AoX7BXEaN"
 
 /**
  * 聊天界面入口。
@@ -107,9 +112,9 @@ fun ChatScreenContent(
         currentPage = Page.SETTINGS
     }
 
-    // 切换页面时同步触摸分区开关（设置页/隐私页内禁止穿透）
+    // 切换页面时同步触摸分区开关（设置页/隐私页内禁止穿透）——经 ViewModel 访问领域单例
     LaunchedEffect(currentPage) {
-        Live2dDelegate.getInstance().zoneTouchEnabled = currentPage == Page.CHAT
+        chatViewModel.updateZoneTouchEnabled(currentPage == Page.CHAT)
     }
 
     AnimatedContent(
@@ -133,8 +138,9 @@ fun ChatScreenContent(
                 onBack = { currentPage = Page.CHAT },
                 onOpenPrivacyPolicy = { currentPage = Page.PRIVACY },
                 onExitApp = {
-                    // 取消数据采集授权后立即退出，保证本进程内 SDK 不再上报
-                    android.os.Process.killProcess(android.os.Process.myPid())
+                    // 取消数据采集授权后需立即终止进程：友盟 SDK 有独立上报线程，
+                    // 仅 finish 页面无法保证其立即停止，kill 是隐私合规的兜底
+                    exitAppSilently()
                 }
             )
 
@@ -181,10 +187,18 @@ private fun ChatPage(
         showAbout = false
     }
 
-    // 错误提示
+    // 错误提示：可点「重试」重发上一条消息
     LaunchedEffect(state.error) {
-        state.error?.let {
-            snackbarHostState.showSnackbar(it)
+        state.error?.let { message ->
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = "重试",
+                duration = SnackbarDuration.Long,
+                withDismissAction = true
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                chatViewModel.onEvent(ChatEvent.RetryLastMessage)
+            }
             chatViewModel.onEvent(ChatEvent.DismissError)
         }
     }
@@ -215,9 +229,11 @@ private fun ChatPage(
             withDismissAction = true
         )
         if (result == SnackbarResult.ActionPerformed) {
+            // 防御：无浏览器/URL 异常时静默忽略，不影响主流程
             try {
                 uriHandler.openUri(notice.url)
             } catch (_: Exception) {
+                // ignore
             }
         }
         chatViewModel.onEvent(ChatEvent.DismissUpdateNotice)
@@ -225,54 +241,10 @@ private fun ChatPage(
 
     Box(modifier = Modifier.fillMaxSize()) {
         // ── Layer 1: 消息列表 ──
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 88.dp)
-                .padding(horizontal = 4.dp, vertical = 8.dp),
-            contentPadding = PaddingValues(vertical = 8.dp),
-            verticalArrangement = Arrangement.Bottom
-        ) {
-            if (state.messages.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "开始和 Mea 对话吧！\n发送一条消息开始聊天 🐾",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-            }
-
-            items(
-                items = state.messages,
-                key = { it.id }
-            ) { message ->
-                ChatBubble(message = message)
-            }
-
-            if (state.isLoading) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Mea 正在思考...",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-            }
-        }
+        MessageList(
+            state = state,
+            listState = listState
+        )
 
         // ── Layer 2: 顶部菜单 ──
         OverlayMenu(
@@ -340,6 +312,62 @@ private fun ChatPage(
     }
 }
 
+/** 消息列表：空态提示 + 消息气泡 + 加载中。 */
+@Composable
+private fun MessageList(
+    state: ChatUiState,
+    listState: LazyListState
+) {
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(bottom = 88.dp)
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(vertical = 8.dp),
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        if (state.messages.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "开始和 Mea 对话吧！\n发送一条消息开始聊天 🐾",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+
+        items(
+            items = state.messages,
+            key = { it.id }
+        ) { message ->
+            ChatBubble(message = message)
+        }
+
+        if (state.isLoading) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Mea 正在思考...",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+    }
+}
+
 /**
  * 关于悬浮卡片——使用系统 Dialog 窗口，真正浮于所有内容之上。
  *
@@ -383,9 +411,7 @@ private fun AboutDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         val context = LocalContext.current
-        val appVersion = try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
-        } catch (_: Exception) { "1.0.0" }
+        val appVersion = AppInfo.readVersion(context)
         val uriHandler = LocalUriHandler.current
 
         Card(
@@ -437,21 +463,21 @@ private fun AboutDialog(
                 val linkStyle = MaterialTheme.typography.bodySmall
                 LinkItem(
                     text = "Live2D 模型来源",
-                    url = "https://www.bilibili.com/video/BV1AoX7BXEaN",
+                    url = LIVE2D_MODEL_SOURCE_URL,
                     uriHandler = uriHandler,
                     style = linkStyle
                 )
                 Spacer(Modifier.height(2.dp))
                 LinkItem(
                     text = "GitHub 仓库",
-                    url = com.meapet.mobile.framework.AppInfo.gitRepoUrl,
+                    url = com.meapet.mobile.core.AppInfo.gitRepoUrl,
                     uriHandler = uriHandler,
                     style = linkStyle
                 )
                 Spacer(Modifier.height(2.dp))
                 LinkItem(
                     text = "交流 QQ 群",
-                    url = com.meapet.mobile.framework.AppInfo.qqGroupUrl,
+                    url = com.meapet.mobile.core.AppInfo.qqGroupUrl,
                     uriHandler = uriHandler,
                     style = linkStyle
                 )
@@ -641,4 +667,9 @@ private fun memoryTypeLabel(type: MemoryType): String = when (type) {
     MemoryType.LONG_TERM -> "长期"
     MemoryType.CORE_TRAIT -> "特质"
     MemoryType.FACTUAL -> "事实"
+}
+
+/** 立即结束应用进程（隐私撤销授权后的合规退出，确保上报线程停止）。 */
+private fun exitAppSilently() {
+    android.os.Process.killProcess(android.os.Process.myPid())
 }

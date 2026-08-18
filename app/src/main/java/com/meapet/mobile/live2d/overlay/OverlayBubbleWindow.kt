@@ -1,4 +1,4 @@
-package com.meapet.mobile.live2d
+package com.meapet.mobile.live2d.overlay
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -9,7 +9,6 @@ import android.os.Looper
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -20,7 +19,7 @@ import kotlin.math.roundToInt
  *
  * 展示 AI 回复气泡，位于人物悬浮窗左侧或右侧（取离屏幕较远的一侧），
  * 气泡带小尾巴指向人物（聊天软件式），长文本自动换行。
- * - 窗口 [FLAG_NOT_TOUCHABLE]：完全不消费触摸，点击直接穿透到下层应用；
+ * - 窗口 FLAG_NOT_TOUCHABLE：完全不消费触摸，点击直接穿透到下层应用；
  * - 多个回复共用本窗口：最新气泡加在最底部，旧气泡被顶上，并在寿命末期
  *   逐渐变透明后移除；
  * - 气泡存活时间随文本长度变化（[computeDuration]）；

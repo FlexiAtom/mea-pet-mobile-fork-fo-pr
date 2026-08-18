@@ -3,19 +3,21 @@ package com.meapet.mobile.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.meapet.mobile.chat.ChatEvent
 import com.meapet.mobile.chat.ChatMessage
 import com.meapet.mobile.chat.ChatRole
 import com.meapet.mobile.chat.ChatService
 import com.meapet.mobile.chat.ChatUiState
+import com.meapet.mobile.chat.SystemBubblePolicy
 import com.meapet.mobile.chat.MemoryDialogUi
 import com.meapet.mobile.chat.UpdateNoticeUi
 import com.meapet.mobile.framework.MeaPetApplication
+import com.meapet.mobile.live2d.Live2dDelegate
 import com.meapet.mobile.live2d.Live2dManager
 import com.meapet.mobile.memory.MemoryManager
 import com.meapet.mobile.memory.MemoryStats
 import com.meapet.mobile.update.UpdateCheckResult
 import com.meapet.mobile.update.UpdateChecker
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,7 +42,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val container = MeaPetApplication.from(application)
     private val chatService: ChatService = container.chatService
-    private val memoryManager: MemoryManager? = container.memoryManager
+    private val memoryManager: MemoryManager = container.memoryManager
     private val updateChecker: UpdateChecker = container.updateChecker
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -81,16 +83,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         //   position 4-5          → 扣 2 秒
         //   position 6+（最旧）→ 扣 4 秒（首次扣 2 秒 + 再次扣 2 秒）
         viewModelScope.launch {
-            // msgId → (剩余毫秒, 移除Job, 是否已扣过2秒)
-            val lifeMap = LinkedHashMap<String, Triple<Long, Job, Boolean>>()
+            // msgId → (剩余毫秒, 移除Job, 已扣减次数)
+            val lifeMap = LinkedHashMap<String, Triple<Long, Job, Int>>()
 
             Live2dManager.tapMessageEvent.collect { text ->
                 val newMsg = ChatMessage(role = ChatRole.system, content = text)
                 _state.update { it.copy(messages = it.messages + newMsg) }
 
-                // 为本条启动独立倒计时，初始 7 秒
-                val job = scheduleRemove(lifeMap, newMsg.id, 7_000L)
-                lifeMap[newMsg.id] = Triple(7_000L, job, false)
+                // 为本条启动独立倒计时，初始寿命见 SystemBubblePolicy
+                val job = scheduleRemove(lifeMap, newMsg.id, SystemBubblePolicy.BASE_LIFE_MS)
+                lifeMap[newMsg.id] = Triple(SystemBubblePolicy.BASE_LIFE_MS, job, 0)
 
                 // 重新排位：按 timestamp 降序（最新在前），重新分配剩余寿命
                 val sysIds = _state.value.messages
@@ -101,21 +103,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 sysIds.forEachIndexed { index, id ->
                     val position = index + 1 // 1 = 最新
                     val entry = lifeMap[id] ?: return@forEachIndexed
-                    val (currentLife, oldJob, alreadyReduced) = entry
+                    val (currentLife, oldJob, reduceCount) = entry
 
-                    var newLife = currentLife
-                    if (position > 5 && alreadyReduced) {
-                        // 第 6+ 条且之前扣过 2 秒：再扣 2 秒
-                        newLife = (currentLife - 2_000L).coerceAtLeast(0)
-                    } else if (position > 3 && !alreadyReduced) {
-                        // 第 4-5 条：首次扣 2 秒
-                        newLife = (currentLife - 2_000L).coerceAtLeast(0)
-                    }
+                    // 按排位扣减寿命（策略见 SystemBubblePolicy）
+                    val (newLife, newCount) =
+                        SystemBubblePolicy.computeNextLife(currentLife, reduceCount, position)
 
                     if (newLife != currentLife) {
                         oldJob.cancel()
                         val newJob = scheduleRemove(lifeMap, id, newLife)
-                        lifeMap[id] = Triple(newLife, newJob, alreadyReduced || position > 3)
+                        lifeMap[id] = Triple(newLife, newJob, newCount)
                     }
                 }
             }
@@ -158,6 +155,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val extra = current.messages.filterNot { it.id in historyIds }
             current.copy(messages = history + extra)
         }
+    }
+
+    /**
+     * 更新 Live2D 触摸分区开关。
+     *
+     * 仅聊天页启用（设置页/隐私页禁止触摸穿透触发语音），由 ChatScreen 页面切换时调用。
+     */
+    fun updateZoneTouchEnabled(enabled: Boolean) {
+        Live2dDelegate.getInstance().zoneTouchEnabled = enabled
     }
 
     /**
@@ -280,7 +286,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun clearMemory() {
         viewModelScope.launch {
-            memoryManager?.clearAll()
+            memoryManager.clearAll()
             _state.update {
                 it.copy(
                     memoryContextInfo = "记忆已全部清除",
@@ -296,7 +302,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 打开记忆查看对话框：拉取全部记忆与统计。 */
     private fun showMemories() {
-        val mm = memoryManager ?: return
+        val mm = memoryManager
         viewModelScope.launch {
             val memories = mm.getAllMemories()
             val stats = mm.getStats()
@@ -318,7 +324,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 删除单条记忆并刷新对话框列表。 */
     private fun deleteMemory(id: String) {
-        val mm = memoryManager ?: return
+        val mm = memoryManager
         viewModelScope.launch {
             mm.delete(id)
             _state.update { current ->
@@ -356,7 +362,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * @param delayMs 剩余毫秒数
      */
     private fun scheduleRemove(
-        lifeMap: MutableMap<String, Triple<Long, Job, Boolean>>,
+        lifeMap: MutableMap<String, Triple<Long, Job, Int>>,
         msgId: String,
         delayMs: Long
     ): Job = viewModelScope.launch {
@@ -365,7 +371,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             lifeMap.remove(msgId)
             return@launch
         }
-        kotlinx.coroutines.delay(delayMs)
+        kotlinx.coroutines.delay(delayMs.milliseconds)
         removeBubble(msgId)
         lifeMap.remove(msgId)
     }

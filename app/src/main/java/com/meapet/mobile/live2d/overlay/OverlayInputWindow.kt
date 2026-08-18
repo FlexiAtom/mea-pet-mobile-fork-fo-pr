@@ -1,4 +1,4 @@
-package com.meapet.mobile.live2d
+package com.meapet.mobile.live2d.overlay
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -129,7 +129,7 @@ class OverlayInputWindow(
         sendButton = ImageButton(ctx).apply {
             setImageResource(android.R.drawable.ic_menu_send)
             setColorFilter(palette.onPrimary)
-            background = oval(palette.primary, SEND_BUTTON_DP)
+            background = oval(palette.primary)
             contentDescription = "发送"
             setOnClickListener { sendIfPossible() }
         }
@@ -242,11 +242,6 @@ class OverlayInputWindow(
         }
     }
 
-    /** 释放窗口（等同 hide）。 */
-    fun destroy() {
-        hide()
-    }
-
     // ================ 内部 ================
 
     /** 左侧抓手拖动：在屏幕内移动输入条。 */
@@ -288,11 +283,11 @@ class OverlayInputWindow(
         onSend(text)
     }
 
-    private fun oval(color: Int, diameterDp: Int): GradientDrawable =
+    private fun oval(color: Int): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
             setShape(GradientDrawable.OVAL)
-            cornerRadius = dp(diameterDp).toFloat() / 2f
+            cornerRadius = dp(SEND_BUTTON_DP).toFloat() / 2f
         }
 
     private fun dp(v: Number): Int = (v.toFloat() * density).roundToInt()

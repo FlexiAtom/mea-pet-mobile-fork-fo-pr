@@ -1,10 +1,9 @@
-package com.meapet.mobile.framework
+package com.meapet.mobile.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.opengl.GLSurfaceView
@@ -26,9 +25,14 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.meapet.mobile.live2d.FloatingLive2dService
+import com.meapet.mobile.core.PrivacyConsentManager
+import com.meapet.mobile.core.isDarkTheme
+import com.meapet.mobile.framework.AppContainer
+import com.meapet.mobile.framework.MeaPetApplication
 import com.meapet.mobile.live2d.Live2dDelegate
+import com.meapet.mobile.live2d.Live2dRenderState
 import com.meapet.mobile.live2d.Live2dRenderer
+import com.meapet.mobile.live2d.overlay.FloatingLive2dService
 import com.meapet.mobile.ui.screen.ChatScreenContent
 import com.meapet.mobile.ui.theme.MeaPetTheme
 import kotlinx.coroutines.flow.first
@@ -75,12 +79,7 @@ class MainActivity : ComponentActivity() {
         // 设置窗口背景（防白闪）
         try {
             val themeMode = runBlocking { container.settingsManager.themeModeFlow.first() }
-            val isDark = when (themeMode) {
-                "dark" -> true
-                "light" -> false
-                else -> (resources.configuration.uiMode and
-                        Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-            }
+            val isDark = isDarkTheme(this, themeMode)
             window.setBackgroundDrawable(
                 ColorDrawable(if (isDark) 0xFF141414.toInt() else 0xFFF7F7F7.toInt())
             )
@@ -113,11 +112,7 @@ class MainActivity : ComponentActivity() {
 
                 // Live2D 背景色跟随主题
                 val bgColor = remember(themeMode) {
-                    val isDark = when (themeMode) {
-                        "dark" -> true; "light" -> false
-                        else -> (resources.configuration.uiMode and
-                                Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-                    }
+                    val isDark = isDarkTheme(this@MainActivity, themeMode)
                     if (isDark) floatArrayOf(0.08f, 0.08f, 0.08f)
                     else floatArrayOf(0.97f, 0.97f, 0.97f)
                 }
@@ -188,8 +183,8 @@ class MainActivity : ComponentActivity() {
         try {
             Live2dDelegate.getInstance().onStart(this)
             // 从桌面返回时自动关悬浮窗
-            if (FloatingLive2dService.overlayActive) {
-                FloatingLive2dService.overlayActive = false
+            if (Live2dRenderState.overlayActive.value) {
+                Live2dRenderState.setOverlayActive(false)
                 FloatingLive2dService.stop(this)
             }
         } catch (e: Exception) {
@@ -206,10 +201,10 @@ class MainActivity : ComponentActivity() {
         // 导致本 Activity 用到无效 program → 黑屏/GL 报错。
         // 因此等 Service 完全停止（isRunning=false）后再恢复渲染。
         resumeGate?.let { mainHandler.removeCallbacks(it) }
-        if (FloatingLive2dService.isRunning) {
+        if (Live2dRenderState.isRunning.value) {
             val gate = object : Runnable {
                 override fun run() {
-                    if (FloatingLive2dService.isRunning) {
+                    if (Live2dRenderState.isRunning.value) {
                         mainHandler.postDelayed(this, 16L)
                     } else {
                         resumeGate = null
@@ -254,13 +249,13 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         try {
-            if (FloatingLive2dService.isRunning) {
+            if (Live2dRenderState.isRunning.value) {
                 // 悬浮窗 Service 的 GL 线程还在使用共享的静态单例
                 // （CubismShaderAndroid / Live2dManager / CubismFramework），
                 // 此处不能 dispose，置位标记交给 Service onDestroy 收尾。
                 // 但必须清除单例对本 Activity 的强引用，否则悬浮窗存活期间
                 // 已销毁的 Activity 及其视图树会被长期持有（内存泄漏）。
-                FloatingLive2dService.pendingSharedDispose = true
+                Live2dRenderState.setPendingSharedDispose(true)
                 Live2dDelegate.getInstance().onActivityDestroyed(this)
             } else {
                 Live2dDelegate.getInstance().onDestroy()
@@ -271,10 +266,12 @@ class MainActivity : ComponentActivity() {
     }
 
     @Deprecated("Use registerForActivityResult")
+    @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == OVERLAY_PERMISSION_REQUEST) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
+            // minSdk 26 > API 23，SDK_INT < M 恒 false，直接判断悬浮窗权限
+            if (Settings.canDrawOverlays(this)) {
                 requestNotificationPermissionThenStartOverlay()
             } else {
                 Log.w(TAG, "Overlay permission not granted")
@@ -282,6 +279,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -297,11 +295,12 @@ class MainActivity : ComponentActivity() {
     // ── 悬浮窗 ──────────────────────────────────────
 
     private fun toggleOverlay() {
-        if (FloatingLive2dService.overlayActive) {
-            FloatingLive2dService.overlayActive = false
+        if (Live2dRenderState.overlayActive.value) {
+            Live2dRenderState.setOverlayActive(false)
             FloatingLive2dService.stop(this)
         } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            // minSdk 26 > API 23，SDK_INT >= M 恒 true，直接判断悬浮窗权限
+            if (!Settings.canDrawOverlays(this)) {
                 startActivityForResult(
                     Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
                     OVERLAY_PERMISSION_REQUEST
@@ -335,7 +334,7 @@ class MainActivity : ComponentActivity() {
         if (::glSurfaceView.isInitialized) {
             try { glSurfaceView.onPause() } catch (_: Exception) {}
         }
-        FloatingLive2dService.overlayActive = true
+        Live2dRenderState.setOverlayActive(true)
         FloatingLive2dService.start(this)
         moveTaskToBack(true)
     }

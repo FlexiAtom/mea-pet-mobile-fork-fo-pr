@@ -1,4 +1,4 @@
-package com.meapet.mobile.framework
+package com.meapet.mobile.config
 
 /**
  * 全局应用配置。
@@ -39,7 +39,7 @@ data class AppConfig(
     val appVersion: String = "1.0.0"
 ) {
     companion object {
-        /** 合理的生产默认值。各模块可通过 [AppContainer.config] 访问。 */
+        /** 合理的生产默认值。各模块可通过 AppContainer 的 config 属性访问。 */
         val DEFAULT = AppConfig()
     }
 }

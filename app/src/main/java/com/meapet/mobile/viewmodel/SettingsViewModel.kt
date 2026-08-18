@@ -6,10 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.meapet.mobile.client.OpenAiCompatibleClient
 import com.meapet.mobile.client.exception.ApiException
 import com.meapet.mobile.client.model.ApiResponse
+import com.meapet.mobile.core.AppInfo
+import com.meapet.mobile.core.PrivacyConsentManager
 import com.meapet.mobile.framework.MeaPetApplication
 import com.meapet.mobile.settings.SettingsKeys
 import com.meapet.mobile.settings.SettingsManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,6 +45,7 @@ data class SettingsUiState(
     val themeMode: String = SettingsKeys.Defaults.THEME_MODE,
     val enableDynamicColor: Boolean = SettingsKeys.Defaults.ENABLE_DYNAMIC_COLOR,
     val colorPreset: String = SettingsKeys.Defaults.COLOR_PRESET,
+    val privacyAgreed: Boolean = false,
     val appVersion: String = "",
     val availableModels: List<String> = emptyList(),
     val isLoadingModels: Boolean = false,
@@ -68,83 +73,47 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             systemPrompt = settingsManager.getSystemPrompt(),
             enableMemory = settingsManager.isMemoryEnabled(),
             enableAutoSummary = settingsManager.isAutoSummaryEnabled(),
-            summaryInterval = settingsManager.getSummaryInterval()
+            summaryInterval = settingsManager.getSummaryInterval(),
+            privacyAgreed = PrivacyConsentManager.isAgreed(getApplication())
         )
     }
 
     init {
-        // 订阅所有设置流
-        viewModelScope.launch {
-            settingsManager.apiKeyFlow.collect { key ->
-                _state.update {
-                    it.copy(
-                        apiKey = key,
-                        apiKeyMasked = maskApiKey(key)
-                    )
-                }
-            }
+        // 订阅所有设置流（统一经 subscribe 辅助，避免逐块手写 collect 样板）
+        subscribe(settingsManager.apiKeyFlow) { s, key ->
+            s.copy(apiKey = key, apiKeyMasked = maskApiKey(key))
         }
-        viewModelScope.launch {
-            settingsManager.apiUrlFlow.collect { url ->
-                _state.update { it.copy(apiUrl = url) }
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.modelFlow.collect { model ->
-                _state.update { it.copy(model = model) }
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.temperatureFlow.collect { temp ->
-                _state.update { it.copy(temperature = temp) }
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.maxTokensFlow.collect { tokens ->
-                _state.update { it.copy(maxTokens = tokens) }
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.systemPromptFlow.collect { prompt ->
-                _state.update { it.copy(systemPrompt = prompt) }
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.enableMemoryFlow.collect { enabled ->
-                _state.update { it.copy(enableMemory = enabled) }
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.enableAutoSummaryFlow.collect { enabled ->
-                _state.update { it.copy(enableAutoSummary = enabled) }
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.summaryIntervalFlow.collect { interval ->
-                _state.update { it.copy(summaryInterval = interval) }
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.themeModeFlow.collect { mode ->
-                _state.update { it.copy(themeMode = mode) }
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.enableDynamicColorFlow.collect { enabled ->
-                _state.update { it.copy(enableDynamicColor = enabled) }
-            }
-        }
-        viewModelScope.launch {
-            settingsManager.colorPresetFlow.collect { preset ->
-                _state.update { it.copy(colorPreset = preset) }
-            }
+        subscribe(settingsManager.apiUrlFlow) { s, url -> s.copy(apiUrl = url) }
+        subscribe(settingsManager.modelFlow) { s, m -> s.copy(model = m) }
+        subscribe(settingsManager.temperatureFlow) { s, t -> s.copy(temperature = t) }
+        subscribe(settingsManager.maxTokensFlow) { s, t -> s.copy(maxTokens = t) }
+        subscribe(settingsManager.systemPromptFlow) { s, p -> s.copy(systemPrompt = p) }
+        subscribe(settingsManager.enableMemoryFlow) { s, e -> s.copy(enableMemory = e) }
+        subscribe(settingsManager.enableAutoSummaryFlow) { s, e -> s.copy(enableAutoSummary = e) }
+        subscribe(settingsManager.summaryIntervalFlow) { s, i -> s.copy(summaryInterval = i) }
+        subscribe(settingsManager.themeModeFlow) { s, m -> s.copy(themeMode = m) }
+        subscribe(settingsManager.enableDynamicColorFlow) { s, e -> s.copy(enableDynamicColor = e) }
+        subscribe(settingsManager.colorPresetFlow) { s, p -> s.copy(colorPreset = p) }
+
+        // 隐私授权状态（响应式订阅：同意/撤销后 UI 即时反映）
+        subscribe(PrivacyConsentManager.agreedFlow(application)) { s, agreed ->
+            s.copy(privacyAgreed = agreed)
         }
 
-        // 从 PackageManager 读取版本号
-        val version = try {
-            application.packageManager.getPackageInfo(application.packageName, 0).versionName ?: "1.0.0"
-        } catch (_: Exception) { "1.0.0" }
-        _state.update { it.copy(appVersion = version) }
+        // 从 PackageManager 读取版本号（统一实现见 core.AppInfo）
+        _state.update { it.copy(appVersion = AppInfo.readVersion(getApplication())) }
+    }
+
+    /**
+     * 订阅单个 Flow 并把最新值合入 [SettingsUiState]。
+     *
+     * 统一收起原本 12 个手写 `viewModelScope.launch { flow.collect { _state.update { ... } } }`
+     * 的重复样板。
+     */
+    private fun <T> subscribe(flow: Flow<T>, reducer: (SettingsUiState, T) -> SettingsUiState) {
+        viewModelScope.launch {
+            flow.collect { value -> _state.update { reducer(it, value) } }
+        }
     }
 
     // ── 更新方法 ──────────────────────────────────────
@@ -244,6 +213,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val client = OpenAiCompatibleClient(apiKey = apiKey, baseUrl = apiUrl)
                 try {
                     Result.success(ApiResponse.modelIds(client.listModels()))
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Result.failure(e)
                 } finally {
@@ -298,6 +269,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun dismissModelsError() {
         _state.update { it.copy(modelsError = null) }
+    }
+
+    // ── 隐私合规 ──────────────────────────────────────
+    // 授权状态已并入 [SettingsUiState.privacyAgreed]（init 订阅 agreedFlow 响应式维护）
+
+    /** 撤销友盟数据采集授权（同步落盘停止上报；App 随界面流程退出）。 */
+    fun revokePrivacyConsent() {
+        PrivacyConsentManager.setAgreed(getApplication(), false)
     }
 
     // ── 工具 ──────────────────────────────────────────

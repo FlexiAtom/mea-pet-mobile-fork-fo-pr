@@ -1,4 +1,4 @@
-package com.meapet.mobile.framework
+package com.meapet.mobile.core
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -42,6 +42,7 @@ object PrivacyConsentManager {
         context.appDataStore.data.map { it[KEY_DS_AGREED] ?: false }
 
     /** 标记用户已做出选择并记录授权状态。 */
+    @Suppress("ApplySharedPref")
     fun setAgreed(context: Context, agreed: Boolean) {
         // 用同步 commit() 保证写盘完成后再返回：取消授权后会立刻 killProcess，
         // apply() 的异步落盘可能来不及，导致重启后仍读到旧的授权状态。

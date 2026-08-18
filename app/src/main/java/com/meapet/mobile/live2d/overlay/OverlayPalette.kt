@@ -1,10 +1,11 @@
-package com.meapet.mobile.live2d
+package com.meapet.mobile.live2d.overlay
 
+import android.annotation.SuppressLint
 import android.app.WallpaperManager
 import android.content.Context
-import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
+import com.meapet.mobile.core.isDarkTheme
 import com.meapet.mobile.framework.MeaPetApplication
 import com.meapet.mobile.settings.SettingsManager
 
@@ -53,15 +54,12 @@ object OverlayPalette {
             PRESET_SEEDS[presetId] ?: PRESET_SEEDS.getValue("default")
         }
 
-        val dark = when (themeMode) {
-            "dark" -> true
-            "light" -> false
-            else -> isNight(context)
-        }
+        val dark = isDarkTheme(context, themeMode)
         return if (dark) darkColors(seed) else lightColors(seed)
     }
 
-    /** 壁纸主色（依次取 primary → secondary → tertiary）。 */
+    /** 壁纸主色（依次取 primary → secondary → tertiary）。仅 API S+ 调用（动态取色分支已检查）。 */
+    @SuppressLint("NewApi", "UNNECESSARY_SAFE_CALL")
     private fun wallpaperSeed(context: Context): Int? {
         val wc = try {
             WallpaperManager.getInstance(context).getWallpaperColors(WallpaperManager.FLAG_SYSTEM)
@@ -95,10 +93,6 @@ object OverlayPalette {
             onSurface = lighten(sp, 0.55f),
         )
     }
-
-    private fun isNight(context: Context): Boolean =
-        (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-            Configuration.UI_MODE_NIGHT_YES
 
     /** 与 Color.kt lighten 一致：c + (1-c)*f。 */
     private fun lighten(c: Int, f: Float): Int {

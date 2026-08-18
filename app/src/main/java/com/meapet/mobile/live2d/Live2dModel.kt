@@ -7,10 +7,8 @@ import com.live2d.sdk.cubism.framework.ICubismModelSetting
 import com.live2d.sdk.cubism.framework.effect.CubismLook
 import com.live2d.sdk.cubism.framework.id.CubismId
 import com.live2d.sdk.cubism.framework.math.CubismMatrix44
-import com.live2d.sdk.cubism.framework.model.CubismMoc
 import com.live2d.sdk.cubism.framework.model.CubismUserModel
 import com.live2d.sdk.cubism.framework.motion.ACubismMotion
-import com.live2d.sdk.cubism.framework.motion.CubismExpressionMotion
 import com.live2d.sdk.cubism.framework.motion.CubismExpressionUpdater
 import com.live2d.sdk.cubism.framework.motion.CubismLookUpdater
 import com.live2d.sdk.cubism.framework.motion.CubismMotion
@@ -19,7 +17,6 @@ import com.live2d.sdk.cubism.framework.motion.CubismPoseUpdater
 import com.live2d.sdk.cubism.framework.rendering.CubismRenderer
 import com.live2d.sdk.cubism.framework.rendering.android.CubismRenderTargetAndroid
 import com.live2d.sdk.cubism.framework.rendering.android.CubismRendererAndroid
-import com.live2d.sdk.cubism.framework.utils.CubismDebug
 
 /**
  * Core Live2D model wrapper extending CubismUserModel.
@@ -75,40 +72,32 @@ class Live2dModel(modelDirName: String) : CubismUserModel() {
         delete()
     }
 
-    fun reloadRenderer() {
-        deleteRenderer()
-
-        val renderer = CubismRendererAndroid.create(
-            Live2dDelegate.getInstance().windowWidth,
-            Live2dDelegate.getInstance().windowHeight
-        )
-        setupRenderer(renderer)
-        setupTextures()
-    }
-
     fun update() {
+        // 模型未加载时跳过本帧（GL 线程防御，上层已有 try-catch）
+        val m = model ?: return
+
         isUpdated(false)
 
         val deltaTimeSeconds = Live2dPal.getDeltaTime()
         userTimeSeconds += deltaTimeSeconds
 
         motionUpdated = false
-        model!!.loadParameters()
+        m.loadParameters()
 
         // Auto-start idle motion if nothing is playing
         if (motionManager.isFinished()) {
             startMotion(Live2dDefine.MotionGroup.IDLE, 0, Live2dDefine.Priority.IDLE)
         } else {
-            motionUpdated = motionManager.updateMotion(model!!, deltaTimeSeconds)
+            motionUpdated = motionManager.updateMotion(m, deltaTimeSeconds)
         }
 
-        model!!.saveParameters()
-        updateScheduler.onLateUpdate(model!!, deltaTimeSeconds)
+        m.saveParameters()
+        updateScheduler.onLateUpdate(m, deltaTimeSeconds)
 
-        // 在 model!!.update() 之前应用视角跟随参数，确保本帧生效
+        // 在 model.update() 之前应用视角跟随参数，确保本帧生效
         applyDragLook(dragX, dragY)
 
-        model!!.update()
+        m.update()
 
         isUpdated(true)
     }
@@ -158,8 +147,9 @@ class Live2dModel(modelDirName: String) : CubismUserModel() {
         }
 
         // Apply model matrix to the projection matrix
+        val mm = modelMatrix ?: return
         CubismMatrix44.multiply(
-            modelMatrix!!.array,
+            mm.array,
             matrix.array,
             matrix.array
         )
@@ -169,24 +159,6 @@ class Live2dModel(modelDirName: String) : CubismUserModel() {
             drawModel()
         }
     }
-
-    fun hasMocConsistencyFromFile(mocFileName: String): Boolean {
-        val path = modelHomeDirectory + mocFileName
-        val buffer = Live2dPal.loadFileAsBytes(path)
-        val consistent = CubismMoc.hasMocConsistency(buffer)
-        CubismDebug.cubismLogInfo(if (consistent) "Consistent MOC3." else "Inconsistent MOC3.")
-        return consistent
-    }
-
-    /**
-     * Returns the model setting (model3.json data). Used by overlay service.
-     */
-    fun getModelSetting(): ICubismModelSetting? = modelSetting
-
-    /**
-     * Get the model home directory.
-     */
-    fun getModelHomeDirectory(): String = modelHomeDirectory
 
     /**
      * 根据触摸位置直接设置模型角度和视线参数。
@@ -238,19 +210,22 @@ class Live2dModel(modelDirName: String) : CubismUserModel() {
             return false
         }
 
+        // 上面已确认 modelSetting.json 非空；取非空引用避免反复 !!
+        val ms = modelSetting ?: return false
+
         // Load .moc3
-        val mocPath = modelHomeDirectory + modelSetting!!.modelFileName
+        val mocPath = modelHomeDirectory + ms.modelFileName
         if (mocPath.isNotEmpty()) {
             val buffer = Live2dPal.loadFileAsBytes(mocPath)
             loadModel(buffer, mocConsistency)
         }
 
         // Expressions
-        val expCount = modelSetting!!.expressionCount
+        val expCount = ms.expressionCount
         if (expCount > 0) {
             for (i in 0 until expCount) {
-                val name = modelSetting!!.getExpressionName(i)
-                val path = modelHomeDirectory + modelSetting!!.getExpressionFileName(i)
+                val name = ms.getExpressionName(i)
+                val path = modelHomeDirectory + ms.getExpressionFileName(i)
                 val buffer = Live2dPal.loadFileAsBytes(path)
                 loadExpression(buffer)?.let { expressions[name] = it }
             }
@@ -258,7 +233,7 @@ class Live2dModel(modelDirName: String) : CubismUserModel() {
         }
 
         // Pose
-        val posePath = modelSetting!!.poseFileName
+        val posePath = ms.poseFileName
         if (posePath.isNotEmpty()) {
             val buffer = Live2dPal.loadFileAsBytes(modelHomeDirectory + posePath)
             loadPose(buffer)
@@ -268,7 +243,7 @@ class Live2dModel(modelDirName: String) : CubismUserModel() {
         }
 
         // Physics
-        val physicsPath = modelSetting!!.physicsFileName
+        val physicsPath = ms.physicsFileName
         if (physicsPath.isNotEmpty()) {
             val buffer = Live2dPal.loadFileAsBytes(modelHomeDirectory + physicsPath)
             loadPhysics(buffer)
@@ -278,7 +253,7 @@ class Live2dModel(modelDirName: String) : CubismUserModel() {
         }
 
         // UserData
-        val userDataPath = modelSetting!!.userDataFile
+        val userDataPath = ms.userDataFile
         if (userDataPath.isNotEmpty()) {
             val buffer = Live2dPal.loadFileAsBytes(modelHomeDirectory + userDataPath)
             loadUserData(buffer)
@@ -302,14 +277,15 @@ class Live2dModel(modelDirName: String) : CubismUserModel() {
 
         // Layout
         val layout = mutableMapOf<String, Float>()
-        modelSetting!!.getLayoutMap(layout)
-        modelMatrix!!.setupFromLayout(layout)
+        ms.getLayoutMap(layout)
+        val mm = modelMatrix ?: return false
+        mm.setupFromLayout(layout)
 
-        model!!.saveParameters()
+        model?.saveParameters()
 
         // Preload motions
-        for (i in 0 until modelSetting!!.motionGroupCount) {
-            val group = modelSetting!!.getMotionGroupName(i)
+        for (i in 0 until ms.motionGroupCount) {
+            val group = ms.getMotionGroupName(i)
             preLoadMotionGroup(group)
         }
 
@@ -318,19 +294,20 @@ class Live2dModel(modelDirName: String) : CubismUserModel() {
     }
 
     private fun preLoadMotionGroup(group: String) {
-        val count = modelSetting!!.getMotionCount(group)
+        val ms = modelSetting ?: return
+        val count = ms.getMotionCount(group)
         for (i in 0 until count) {
             val name = "${group}_$i"
-            val path = modelSetting!!.getMotionFileName(group, i)
+            val path = ms.getMotionFileName(group, i)
             if (path.isEmpty()) continue
 
             val fullPath = modelHomeDirectory + path
             val buffer = Live2dPal.loadFileAsBytes(fullPath)
             val tmp = loadMotion(buffer) as? CubismMotion ?: continue
 
-            val fadeIn = modelSetting!!.getMotionFadeInTimeValue(group, i)
+            val fadeIn = ms.getMotionFadeInTimeValue(group, i)
             if (fadeIn != -1.0f) tmp.fadeInTime = fadeIn
-            val fadeOut = modelSetting!!.getMotionFadeOutTimeValue(group, i)
+            val fadeOut = ms.getMotionFadeOutTimeValue(group, i)
             if (fadeOut != -1.0f) tmp.fadeOutTime = fadeOut
             tmp.setEffectIds(eyeBlinkIds, lipSyncIds)
 

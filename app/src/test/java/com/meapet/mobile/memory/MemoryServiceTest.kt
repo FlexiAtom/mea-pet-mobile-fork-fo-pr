@@ -3,7 +3,7 @@ package com.meapet.mobile.memory
 import com.meapet.mobile.client.HttpResponse
 import com.meapet.mobile.client.OpenAiCompatibleClient
 import com.meapet.mobile.client.test.FakeHttpClientEngine
-import com.meapet.mobile.framework.AppConfig
+import com.meapet.mobile.config.AppConfig
 import com.meapet.mobile.settings.SettingsManager
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json

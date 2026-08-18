@@ -12,6 +12,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [待定] - 2026-08-18
+
+### Added
+
+- **包结构治理** — 拆出 `core`（AppInfo / PrivacyConsentManager / LifecycleManager）、独立 `config`（AppConfig）叶子包；`live2d` 拆为渲染核心 / `live2d.audio`（语音，为未来 TTS 留位）/ `live2d.overlay`（悬浮窗）三包；`MainActivity` 移入 `ui` 包；`ChatEvent` 移入 `viewmodel` 包。至此全部包级循环依赖消除，依赖方向单向、无循环。
+- **统一异常捕获约定** — 新增 `core/ErrorHandling`：协程 `CancellationException` 一律重抛、业务失败记录日志并返回可恢复结果、防御性静默须注释；提供 `runCatchingLog` 工具，已应用于 API 响应解析与更新检测解析（补上原缺失的失败日志）。
+- **气泡调度测试** — 新增 `SystemBubblePolicy` 纯策略类与 9 个 JVM 单元测试，覆盖寿命扣减、扣减上限与封底规则。
+- **悬浮窗渲染 / 手势拆分** — 从 `FloatingLive2dService` 拆出 `Live2dOverlayRenderer`（GL 渲染，回调解耦）与 `OverlayTouchHandler`（拖动 / 捏合 / 轻触判定），Service 只负责生命周期与窗口编排。
+- **聊天失败重试入口** — 聊天页错误 Snackbar 新增「重试」按钮，可重发上一条失败消息（`RetryLastMessage` 事件此前仅存在于 ViewModel 层、UI 未接线）。
+
+### Changed
+
+- **`Live2dRenderState` 状态机制** — 4 个渲染协调标记由裸 `@Volatile` 静态变量改为 `StateFlow`（线程安全、可观察），`shuttingDown` 一并纳入；写入统一经 setter，并新增 `consumeShaderResetRequest()` 原子复合读。
+- **`SettingsViewModel` 订阅收拢** — 原 12 个手写 `collect` 块合并为泛型 `subscribe(flow, reducer)` 辅助；隐私授权状态并入 `SettingsUiState.privacyAgreed` 响应式订阅（此前为一次性同步读）。
+- **`SettingsScreen` 结构** — 主体拆分为 6 个功能 Section + 本地编辑状态 holder；魔法数字提取为命名常量（alpha / Slider 范围与步进），`onFocusChanged` 保存样板提取为 `saveOnFocusChange` 扩展，硬编码滑杆轨道色提取为 `sliderTrackColor`。
+- **`ChatScreen` 结构** — 拆分出 `MessageList`；Live2D 触摸分区开关改经 `ChatViewModel` 访问领域单例；版本号读取统一到 `AppInfo.readVersion`（消除 AppContainer / SettingsViewModel / ChatScreen 三处重复）；Bilibili 模型来源 URL 常量化；进程退出封装为 `exitAppSilently()`。
+- **主题判断统一** — 新增 `core/ThemeUtil` 主题解析纯逻辑（`resolveDarkTheme` / `isSystemNight` / context 版 `isDarkTheme`），Compose 场景薄封装于 `ui.theme`；消除 `live2d.overlay → ui.theme` 领域层反向依赖 UI 的分层违规。
+- **隐私调用归位** — 设置页隐私授权读取 / 撤销改经 `SettingsViewModel`，UI 不再直接触达 `PrivacyConsentManager`。
+
+### Fixed
+
+- **气泡寿命扣减无上限** — `SystemBubblePolicy.computeNextLife` 旧实现在位置 6+ 持续被新气泡挤压时无限扣减（两三个新气泡即可把 7 秒寿命扣到 0），与「共扣 4 秒」的注释意图矛盾。改为累计最多扣 2 次（4 秒）、寿命封底 3 秒。
+- **`!!` 断言全部消除** — 移除 `Live2dModel` / `Live2dView` / `Live2dManager` / `FloatingLive2dService` 共 46 处 `!!`，改安全调用 + 早退 / 局部非空绑定。
+- **协程取消被吞** — `SettingsViewModel.fetchModels`、`UpdateChecker.check` 在协程内 `catch (Exception)` 会吞掉 `CancellationException` 导致取消失效，补前置重抛。
+- **渲染状态复合判断竞态** — `Live2dDelegate` 对 `wasActive && !overlayActive` 的两次独立读取非原子，改走 `consumeShaderResetRequest()` 原子消费。
+
+---
+
 ## [待定] - 2026-08-17
 
 ### Changed

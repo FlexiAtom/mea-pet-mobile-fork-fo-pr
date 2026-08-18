@@ -1,4 +1,4 @@
-package com.meapet.mobile.framework
+package com.meapet.mobile.core
 
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
@@ -27,6 +27,7 @@ class LifecycleManager(
 
     override fun onConfigurationChanged(newConfig: Configuration) {}
 
+    @Suppress("DEPRECATION")
     override fun onLowMemory() {
         try {
             Log.w(TAG, "系统低内存通知")

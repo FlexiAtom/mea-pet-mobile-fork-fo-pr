@@ -2,6 +2,8 @@ package com.meapet.mobile.update
 
 import android.util.Log
 import com.meapet.mobile.client.HttpClientEngine
+import com.meapet.mobile.core.runCatchingLog
+import kotlinx.coroutines.CancellationException
 import com.meapet.mobile.client.HttpMethod
 import com.meapet.mobile.client.HttpRequest
 import com.meapet.mobile.client.KtorHttpClientEngine
@@ -53,6 +55,8 @@ class UpdateChecker(
             } else {
                 UpdateCheckResult.UpToDate(currentVersion = current)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "update check failed: ${e.message}")
             UpdateCheckResult.Failed(e.message ?: "网络异常，检测失败")
@@ -107,24 +111,20 @@ class UpdateChecker(
                 }
                 .ifEmpty { listOf(0) }
 
-        private fun parseRelease(body: String): AppRelease? {
-            return try {
-                val obj = json.parseToJsonElement(body).jsonObject
-                val tagName = obj["tag_name"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
-                if (tagName.isEmpty()) return null
-                val versionName = tagName.removePrefix("v").removePrefix("V")
-                val htmlUrl = obj["html_url"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
-                if (htmlUrl.isEmpty()) return null
-                AppRelease(
-                    tagName = tagName,
-                    versionName = versionName,
-                    htmlUrl = htmlUrl,
-                    name = obj["name"]?.jsonPrimitive?.contentOrNull,
-                    body = obj["body"]?.jsonPrimitive?.contentOrNull
-                )
-            } catch (_: Exception) {
-                null
-            }
+        private fun parseRelease(body: String): AppRelease? = runCatchingLog(TAG) {
+            val obj = json.parseToJsonElement(body).jsonObject
+            val tagName = obj["tag_name"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+            if (tagName.isEmpty()) return@runCatchingLog null
+            val versionName = tagName.removePrefix("v").removePrefix("V")
+            val htmlUrl = obj["html_url"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+            if (htmlUrl.isEmpty()) return@runCatchingLog null
+            AppRelease(
+                tagName = tagName,
+                versionName = versionName,
+                htmlUrl = htmlUrl,
+                name = obj["name"]?.jsonPrimitive?.contentOrNull,
+                body = obj["body"]?.jsonPrimitive?.contentOrNull
+            )
         }
     }
 }

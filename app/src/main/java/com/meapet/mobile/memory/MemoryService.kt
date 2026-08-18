@@ -4,7 +4,7 @@ import android.util.Log
 import com.meapet.mobile.client.OpenAiCompatibleClient
 import com.meapet.mobile.client.model.ApiRequest
 import com.meapet.mobile.client.model.ApiResponse
-import com.meapet.mobile.framework.AppConfig
+import com.meapet.mobile.config.AppConfig
 import com.meapet.mobile.memory.MemoryOpsProtocol.MemoryOp
 import com.meapet.mobile.settings.SettingsManager
 import kotlinx.coroutines.CancellationException

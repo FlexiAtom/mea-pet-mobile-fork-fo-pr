@@ -1,5 +1,6 @@
-package com.meapet.mobile.framework
+package com.meapet.mobile.core
 
+import android.content.Context
 import com.meapet.mobile.BuildConfig
 
 /**
@@ -12,6 +13,8 @@ import com.meapet.mobile.BuildConfig
  * 注入缺失时回退到 MeaPet 原作者的默认值，保证功能可用。
  */
 object AppInfo {
+
+    private const val DEFAULT_VERSION = "1.0.0"
 
     /** 开发者名称。 */
     val devName: String = BuildConfig.DEV_NAME.ifBlank { "llz121517" }
@@ -29,5 +32,12 @@ object AppInfo {
     /** 友盟+ 隐私权政策链接。 */
     val umengPolicyUrl: String = BuildConfig.UMENG_POLICY_URL.ifBlank {
         "https://www.umeng.com/page/policy"
+    }
+
+    /** 从 PackageManager 读取当前 versionName（失败回退默认）。 */
+    fun readVersion(context: Context): String = try {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: DEFAULT_VERSION
+    } catch (_: Exception) {
+        DEFAULT_VERSION
     }
 }

@@ -14,7 +14,7 @@
     <!-- Required for floating overlay window -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" tools:targetApi="34" />
 
     <!-- API 33+ 前台服务通知需要运行时通知权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -30,13 +30,14 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MeaPet">
 
-        <!-- 主入口（框架层） -->
+        <!-- 主入口（UI 外壳） -->
         <activity
-            android:name=".framework.MainActivity"
+            android:name=".ui.MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
-            android:screenOrientation="fullUser">
+            android:screenOrientation="fullUser"
+            tools:ignore="LockedOrientationActivity,DeprecatedAndroidApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -47,13 +48,13 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="um.YOUR_UMENG_APPKEY" />
+                <data android:scheme="um.your_umeng_appkey" />
             </intent-filter>
         </activity>
 
         <!-- Floating overlay service -->
         <service
-            android:name=".live2d.FloatingLive2dService"
+            android:name=".live2d.overlay.FloatingLive2dService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property

@@ -8,6 +8,9 @@ import com.meapet.mobile.client.OpenAiCompatibleClient
 import com.meapet.mobile.chat.ChatService
 import com.meapet.mobile.chat.ConversationManager
 import com.meapet.mobile.chat.ConversationStore
+import com.meapet.mobile.config.AppConfig
+import com.meapet.mobile.core.AppInfo
+import com.meapet.mobile.core.LifecycleManager
 import com.meapet.mobile.memory.MemoryManager
 import com.meapet.mobile.memory.MemoryRepository
 import com.meapet.mobile.memory.MemoryService
@@ -158,12 +161,8 @@ class AppContainer(
         }
     }
 
-    /** 从 PackageManager 读取当前 versionName。 */
-    fun readAppVersion(): String = try {
-        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
-    } catch (_: Exception) {
-        "1.0.0"
-    }
+    /** 从 PackageManager 读取当前 versionName（统一实现见 [AppInfo]）。 */
+    fun readAppVersion(): String = AppInfo.readVersion(context)
 
     // ── 运行时热替换 ──────────────────────────────────
 

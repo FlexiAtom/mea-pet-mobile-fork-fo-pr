@@ -1,7 +1,7 @@
 package com.meapet.mobile.memory
 
 import android.util.Log
-import com.meapet.mobile.framework.AppConfig
+import com.meapet.mobile.config.AppConfig
 import com.meapet.mobile.settings.SettingsManager
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

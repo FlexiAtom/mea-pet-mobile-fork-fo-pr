@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.pm.ApplicationInfo
 import android.util.Log
 import com.meapet.mobile.BuildConfig
+import com.meapet.mobile.core.PrivacyConsentManager
 import com.umeng.commonsdk.UMConfigure
 
 /**

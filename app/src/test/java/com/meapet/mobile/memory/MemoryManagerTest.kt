@@ -1,6 +1,6 @@
 package com.meapet.mobile.memory
 
-import com.meapet.mobile.framework.AppConfig
+import com.meapet.mobile.config.AppConfig
 import com.meapet.mobile.settings.SettingsManager
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -44,7 +44,6 @@ class MemoryManagerTest {
             whenever(sm.getExchangeCount()).thenAnswer { storedCount }
             wheneverBlocking { sm.setExchangeCount(any()) }.thenAnswer {
                 storedCount = it.arguments[0] as Int
-                Unit
             }
             return sm
         }

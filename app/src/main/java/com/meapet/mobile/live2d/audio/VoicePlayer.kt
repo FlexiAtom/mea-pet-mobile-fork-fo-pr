@@ -1,4 +1,4 @@
-package com.meapet.mobile.live2d
+package com.meapet.mobile.live2d.audio
 
 import android.content.Context
 import android.content.res.AssetFileDescriptor

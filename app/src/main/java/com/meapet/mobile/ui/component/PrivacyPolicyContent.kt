@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.meapet.mobile.framework.AppInfo
+import com.meapet.mobile.core.AppInfo
 
 /**
  * 共享的隐私政策正文内容（纯内容，不含任何外壳组件）。

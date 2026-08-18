@@ -1,4 +1,4 @@
-package com.meapet.mobile.live2d
+package com.meapet.mobile.live2d.overlay
 
 import android.annotation.SuppressLint
 import android.content.Context

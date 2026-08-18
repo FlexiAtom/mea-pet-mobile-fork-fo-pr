@@ -31,10 +31,7 @@ data class ChatUiState(
     val aboutReleaseUrl: String? = null,
     val isCheckingUpdate: Boolean = false,
     val memoryDialog: MemoryDialogUi? = null
-) {
-    val isError: Boolean get() = error != null
-    val canSend: Boolean get() = !isLoading && inputText.isNotBlank()
-}
+)
 
 /** UI 层展示的更新提示。 */
 data class UpdateNoticeUi(
@@ -48,48 +45,4 @@ data class MemoryDialogUi(
     val stats: MemoryStats = MemoryStats(),
     val isMemoryEnabled: Boolean = true
 )
-
-/**
- * 聊天事件——ViewModel 接收的用户操作。
- */
-sealed interface ChatEvent {
-    /** 发送消息。 */
-    data class SendMessage(val content: String) : ChatEvent
-
-    /** 更新输入框文本。 */
-    data class UpdateInput(val text: String) : ChatEvent
-
-    /** 清除对话历史。 */
-    data object ClearConversation : ChatEvent
-
-    /** 清除记忆。 */
-    data object ClearMemory : ChatEvent
-
-    /** 打开记忆查看对话框。 */
-    data object ShowMemories : ChatEvent
-
-    /** 关闭记忆查看对话框。 */
-    data object DismissMemories : ChatEvent
-
-    /** 删除单条记忆。 */
-    data class DeleteMemory(val id: String) : ChatEvent
-
-    /** 重新发送上一条消息（失败后重试）。 */
-    data object RetryLastMessage : ChatEvent
-
-    /** 清除错误。 */
-    data object DismissError : ChatEvent
-
-    /** 清除记忆信息提示（Snackbar 已显示）。 */
-    data object DismissMemoryInfo : ChatEvent
-
-    /** 启动静默检测更新提示已展示。 */
-    data object DismissUpdateNotice : ChatEvent
-
-    /** 关于页手动检测更新。 */
-    data object CheckForUpdate : ChatEvent
-
-    /** 关于页检测结果提示已展示/清除。 */
-    data object DismissAboutUpdateMessage : ChatEvent
-}
 

@@ -76,10 +76,11 @@ class Live2dView : AutoCloseable {
         val cx = w * 0.5f
         val cy = h * 0.5f
 
+        val shader = spriteShader ?: return
         if (renderingSprite == null) {
-            renderingSprite = Live2dSprite(cx, cy, w, h, 0, spriteShader!!.programId)
+            renderingSprite = Live2dSprite(cx, cy, w, h, 0, shader.programId)
         } else {
-            renderingSprite!!.resize(cx, cy, w, h)
+            renderingSprite?.resize(cx, cy, w, h)
         }
     }
 
@@ -93,11 +94,12 @@ class Live2dView : AutoCloseable {
         if (renderingTarget == RenderingTarget.MODEL_FRAME_BUFFER && renderingSprite != null) {
             val uv = floatArrayOf(1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f)
             val model = Live2dManager.getInstance().model ?: return
+            val sprite = renderingSprite ?: return
             val alpha = getSpriteAlpha(2)
 
-            renderingSprite!!.setColor(1.0f, 1.0f, 1.0f, alpha)
-            renderingSprite!!.setWindowSize(w, h)
-            renderingSprite!!.renderImmediate(model.renderingBuffer.colorBuffer[0], uv)
+            sprite.setColor(1.0f, 1.0f, 1.0f, alpha)
+            sprite.setWindowSize(w, h)
+            sprite.renderImmediate(model.renderingBuffer.colorBuffer[0], uv)
         }
     }
 
@@ -147,13 +149,14 @@ class Live2dView : AutoCloseable {
 
         if (renderingTarget == RenderingTarget.VIEW_FRAME_BUFFER && renderingSprite != null) {
             val uv = floatArrayOf(1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f)
+            val sprite = renderingSprite ?: return
             val alpha = getSpriteAlpha(0)
-            renderingSprite!!.setColor(1.0f, 1.0f, 1.0f, alpha)
-            renderingSprite!!.setWindowSize(
+            sprite.setColor(1.0f, 1.0f, 1.0f, alpha)
+            sprite.setWindowSize(
                 Live2dDelegate.getInstance().windowWidth,
                 Live2dDelegate.getInstance().windowHeight
             )
-            renderingSprite!!.renderImmediate(target.colorBuffer[0], uv)
+            sprite.renderImmediate(target.colorBuffer[0], uv)
         }
     }
 

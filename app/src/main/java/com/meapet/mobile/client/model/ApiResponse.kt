@@ -1,5 +1,6 @@
 package com.meapet.mobile.client.model
 
+import com.meapet.mobile.core.runCatchingLog
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -16,6 +17,8 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 object ApiResponse {
 
+    private const val TAG = "ApiResponse"
+
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
@@ -23,14 +26,12 @@ object ApiResponse {
      *
      * @return 消息文本；`choices` 为空、content 缺失或结构不符时返回 null
      */
-    fun chatCompletionContent(body: String): String? = try {
+    fun chatCompletionContent(body: String): String? = runCatchingLog(TAG) {
         json.parseToJsonElement(body).jsonObject["choices"]
             ?.jsonArray?.firstOrNull()
             ?.jsonObject?.get("message")
             ?.jsonObject?.get("content")
             ?.jsonPrimitive?.contentOrNull
-    } catch (_: Exception) {
-        null
     }
 
     /**

@@ -62,8 +62,9 @@ class Live2dManager private constructor() {
         val dir = "$MODEL_DIR_NAME/"
         Log.d(TAG, "Loading model from: $dir$MODEL_JSON_NAME")
         try {
-            model = Live2dModel(dir)
-            model!!.loadAssets(dir, MODEL_JSON_NAME)
+            val m = Live2dModel(dir)
+            m.loadAssets(dir, MODEL_JSON_NAME)
+            model = m
             modelLoaded = true
             Log.d(TAG, "Model loaded successfully")
         } catch (e: Exception) {
@@ -85,13 +86,15 @@ class Live2dManager private constructor() {
 
         projection.loadIdentity()
 
-        val canvasRatio = m.model!!.canvasHeight / m.model!!.canvasWidth
+        val core = m.model ?: return
+        val mm = m.modelMatrix ?: return
+        val canvasRatio = core.canvasHeight / core.canvasWidth
 
         if (canvasRatio < displayRatio) {
-            m.modelMatrix!!.setWidth(2.4f)
+            mm.setWidth(2.4f)
             projection.scale(1.0f, aspect)
         } else {
-            m.modelMatrix!!.setHeight(2.4f)
+            mm.setHeight(2.4f)
             projection.scale(1.0f / aspect, 1.0f)
         }
 

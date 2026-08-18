@@ -14,6 +14,7 @@
 .cxx
 local.properties
 /app/release/
+/app/debug/
 /.idea/
 /.kotlin/
 /.claude/

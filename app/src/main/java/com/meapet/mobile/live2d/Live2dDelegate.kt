@@ -1,17 +1,20 @@
 package com.meapet.mobile.live2d
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.opengl.GLES20
 import android.util.Log
 import com.live2d.sdk.cubism.framework.CubismFramework
 import com.live2d.sdk.cubism.framework.rendering.android.CubismShaderAndroid
+import com.meapet.mobile.live2d.audio.VoicePlayer
 import java.security.SecureRandom
 
 /**
  * Singleton application delegate — manages Cubism SDK lifecycle,
  * OpenGL state, and owns the View + TextureManager.
  */
+@SuppressLint("StaticFieldLeak")
 class Live2dDelegate private constructor() {
 
     companion object {
@@ -162,15 +165,14 @@ class Live2dDelegate private constructor() {
     }
 
     fun run() {
-        if (FloatingLive2dService.wasActive && !FloatingLive2dService.overlayActive) {
+        if (Live2dRenderState.consumeShaderResetRequest()) {
             // 悬浮窗的 GL 上下文已销毁，它的 shader 在当前上下文无效。
             // 跳过 releaseInvalidShaderProgram（跨上下文 GL 操作会崩溃），直接重建。
             CubismShaderAndroid.deleteInstance()
-            FloatingLive2dService.wasActive = false
             Log.d(TAG, "Shader state reset after overlay closed")
         }
 
-        if (FloatingLive2dService.overlayActive) return
+        if (Live2dRenderState.overlayActive.value) return
 
         Live2dPal.updateTime()
 
