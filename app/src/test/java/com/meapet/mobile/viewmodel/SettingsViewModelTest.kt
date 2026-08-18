@@ -1,7 +1,7 @@
 package com.meapet.mobile.viewmodel
 
-import com.meapet.mobile.framework.AppContainer
-import com.meapet.mobile.framework.MeaPetApplication
+import com.meapet.mobile.app.AppContainer
+import com.meapet.mobile.app.MeaPetApplication
 import com.meapet.mobile.settings.SettingsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

@@ -6,7 +6,7 @@ import android.content.Context
 import android.graphics.Color
 import android.os.Build
 import com.meapet.mobile.core.isDarkTheme
-import com.meapet.mobile.framework.MeaPetApplication
+import com.meapet.mobile.app.MeaPetApplication
 import com.meapet.mobile.settings.SettingsManager
 
 /**

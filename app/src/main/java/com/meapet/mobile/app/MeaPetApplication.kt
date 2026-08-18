@@ -1,4 +1,4 @@
-package com.meapet.mobile.framework
+package com.meapet.mobile.app
 
 import android.app.Application
 import android.content.pm.ApplicationInfo
@@ -25,7 +25,7 @@ import com.umeng.commonsdk.UMConfigure
  * ## 配置
  * 在 `AndroidManifest.xml` 中声明：
  * ```xml
- * <application android:name=".framework.MeaPetApplication" ... />
+ * <application android:name=".app.MeaPetApplication" ... />
  * ```
  */
 class MeaPetApplication : Application() {

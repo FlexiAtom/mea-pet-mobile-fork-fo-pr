@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **包结构治理** — 拆出 `core`（AppInfo / PrivacyConsentManager / LifecycleManager）、独立 `config`（AppConfig）叶子包；`live2d` 拆为渲染核心 / `live2d.audio`（语音，为未来 TTS 留位）/ `live2d.overlay`（悬浮窗）三包；`MainActivity` 移入 `ui` 包；`ChatEvent` 移入 `viewmodel` 包。至此全部包级循环依赖消除，依赖方向单向、无循环。
+- **`framework` 包重命名为 `app`** — 拆分后 `framework` 只剩 `MeaPetApplication` + `AppContainer`，语义即「应用装配根」，重命名为 `app` 消除歧义；manifest `android:name` 与全库 import 同步。
+- **主题工具消歧** — `ui/theme/ThemeUtil.kt`（Compose 薄封装）并入 `Theme.kt`，与 `core/ThemeUtil.kt`（非 Compose 纯逻辑）不再重名。
 - **统一异常捕获约定** — 新增 `core/ErrorHandling`：协程 `CancellationException` 一律重抛、业务失败记录日志并返回可恢复结果、防御性静默须注释；提供 `runCatchingLog` 工具，已应用于 API 响应解析与更新检测解析（补上原缺失的失败日志）。
 - **气泡调度测试** — 新增 `SystemBubblePolicy` 纯策略类与 9 个 JVM 单元测试，覆盖寿命扣减、扣减上限与封底规则。
 - **悬浮窗渲染 / 手势拆分** — 从 `FloatingLive2dService` 拆出 `Live2dOverlayRenderer`（GL 渲染，回调解耦）与 `OverlayTouchHandler`（拖动 / 捏合 / 轻触判定），Service 只负责生命周期与窗口编排。
@@ -35,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **默认 API 配置改为 DeepSeek** — 新装 / 重置用户的默认端点改为 `https://api.deepseek.com/v1`、默认模型改为 `deepseek-v4-flash`（`SettingsKeys.Defaults` 与输入框占位同步）；已保存配置的老用户不受影响。
 - **版本号读取统一** — `AppContainer` / `SettingsViewModel` / `ChatScreen` 三处重复的 PackageManager 读取收敛到 `AppInfo.readVersion`。
 - **静态分析与告警清理** — 修正 manifest（scheme 小写、弃用 API 标记、前台服务 targetApi）、OverlayPalette 壁纸取色 API 27 门禁、删除未使用的 import / 函数 / 属性（`reloadRenderer` / `getModelSetting` / `ChatUiState.isError` 等）、抑制「有意为之」的 deprecated / 静态引用告警；Gradle 构建显式声明本机 JDK 21 路径（解决 IDE 同步失败导致的满屏报红）。
+- **Git 换行符适配** — `.gitattributes` 补全文本/脚本/二进制规则（仓库统一 LF、工作区按平台自适应、`.bat` 强制 CRLF、`gradlew` 强制 LF、二进制禁转换），并将 `core.autocrlf` 由 `true` 改为 `false` 交由 `.gitattributes` 统一管理，避免 Windows / Linux 协作时双重转换。
 
 ### Fixed
 

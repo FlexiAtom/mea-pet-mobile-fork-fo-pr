@@ -27,8 +27,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.meapet.mobile.core.PrivacyConsentManager
 import com.meapet.mobile.core.isDarkTheme
-import com.meapet.mobile.framework.AppContainer
-import com.meapet.mobile.framework.MeaPetApplication
+import com.meapet.mobile.app.AppContainer
+import com.meapet.mobile.app.MeaPetApplication
 import com.meapet.mobile.live2d.Live2dDelegate
 import com.meapet.mobile.live2d.Live2dRenderState
 import com.meapet.mobile.live2d.Live2dRenderer
@@ -39,7 +39,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
 /**
- * 主入口 Activity（框架层）。
+ * 主入口 Activity。
  *
  * ## 设计原则
  * - `launchMode="singleTask"` 防止重复实例

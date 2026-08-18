@@ -4,8 +4,8 @@ import android.app.Application
 import com.meapet.mobile.chat.ChatMessage
 import com.meapet.mobile.chat.ChatRole
 import com.meapet.mobile.chat.ChatService
-import com.meapet.mobile.framework.AppContainer
-import com.meapet.mobile.framework.MeaPetApplication
+import com.meapet.mobile.app.AppContainer
+import com.meapet.mobile.app.MeaPetApplication
 import com.meapet.mobile.memory.MemoryItem
 import com.meapet.mobile.memory.MemoryManager
 import com.meapet.mobile.memory.MemoryStats

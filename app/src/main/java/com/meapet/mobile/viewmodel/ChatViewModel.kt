@@ -10,7 +10,7 @@ import com.meapet.mobile.chat.ChatUiState
 import com.meapet.mobile.chat.SystemBubblePolicy
 import com.meapet.mobile.chat.MemoryDialogUi
 import com.meapet.mobile.chat.UpdateNoticeUi
-import com.meapet.mobile.framework.MeaPetApplication
+import com.meapet.mobile.app.MeaPetApplication
 import com.meapet.mobile.live2d.Live2dDelegate
 import com.meapet.mobile.live2d.Live2dManager
 import com.meapet.mobile.memory.MemoryManager

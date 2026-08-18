@@ -8,7 +8,7 @@ import com.meapet.mobile.client.exception.ApiException
 import com.meapet.mobile.client.model.ApiResponse
 import com.meapet.mobile.core.AppInfo
 import com.meapet.mobile.core.PrivacyConsentManager
-import com.meapet.mobile.framework.MeaPetApplication
+import com.meapet.mobile.app.MeaPetApplication
 import com.meapet.mobile.settings.SettingsKeys
 import com.meapet.mobile.settings.SettingsManager
 import kotlinx.coroutines.CancellationException

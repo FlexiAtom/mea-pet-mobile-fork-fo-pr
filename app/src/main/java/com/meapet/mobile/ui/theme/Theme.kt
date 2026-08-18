@@ -1,11 +1,13 @@
 package com.meapet.mobile.ui.theme
 
 import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.meapet.mobile.core.resolveDarkTheme
 
 /**
  * MeaPet 主题。
@@ -40,3 +42,14 @@ fun MeaPetTheme(
         content = content
     )
 }
+
+/**
+ * Compose 场景主题判断。
+ *
+ * 纯逻辑（[resolveDarkTheme] / 系统夜间检测 / context 版 `isDarkTheme`）位于
+ * [com.meapet.mobile.core]，供非 Compose 场景（悬浮窗 Service 等）复用，
+ * 避免 live2d 等平台层反向依赖 UI 层（分层约束）。
+ */
+@Composable
+fun isDarkTheme(themeMode: String?): Boolean =
+    resolveDarkTheme(themeMode, isSystemInDarkTheme())

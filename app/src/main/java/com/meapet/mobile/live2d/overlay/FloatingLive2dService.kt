@@ -16,7 +16,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
-import com.meapet.mobile.framework.MeaPetApplication
+import com.meapet.mobile.app.MeaPetApplication
 import com.meapet.mobile.live2d.Live2dDelegate
 import com.meapet.mobile.live2d.Live2dRenderState
 import kotlinx.coroutines.CoroutineScope

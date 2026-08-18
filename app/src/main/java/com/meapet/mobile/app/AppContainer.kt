@@ -1,4 +1,4 @@
-package com.meapet.mobile.framework
+package com.meapet.mobile.app
 
 import android.content.ComponentCallbacks2
 import android.content.Context

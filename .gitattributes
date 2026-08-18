@@ -1,3 +1,52 @@
 # 标记 Live2D 框架为 vendored（第三方代码），GitHub 会忽略其语言统计
 app/src/main/java/com/live2d/** linguist-vendored=true
 app/src/main/assets/com/live2d/** linguist-vendored=true
+
+# ─────────────────────────────────────────────
+#  换行符适配（Windows / Linux / macOS 协作）
+#  仓库统一存 LF；工作区按平台自适应；二进制不转换
+# ─────────────────────────────────────────────
+* text=auto
+
+# 文本源文件：仓库 LF，工作区按系统（Win=CRLF / Linux=LF）
+*.kt          text eol=lf
+*.kts         text eol=lf
+*.java        text eol=lf
+*.xml         text eol=lf
+*.md          text eol=lf
+*.json        text eol=lf
+*.properties  text eol=lf
+*.pro         text eol=lf
+*.toml        text eol=lf
+*.html        text eol=lf
+*.css         text eol=lf
+*.js          text eol=lf
+*.svg         text eol=lf
+*.yml         text eol=lf
+*.yaml        text eol=lf
+*.gradle      text eol=lf
+
+# 批处理脚本在 Windows 下必须 CRLF，否则无法执行
+*.bat         text eol=crlf
+*.cmd         text eol=crlf
+
+# shell 脚本必须 LF（Linux/macOS 执行）
+*.sh          text eol=lf
+gradlew       text eol=lf
+
+# 二进制：禁止换行转换
+*.aar         binary
+*.jar         binary
+*.so          binary
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.webp        binary
+*.ico         binary
+*.wav         binary
+*.mp3         binary
+*.ttf         binary
+*.otf         binary
+*.zip         binary
+*.gz          binary
+*.moc3        binary
