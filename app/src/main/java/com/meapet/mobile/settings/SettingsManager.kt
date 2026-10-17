@@ -77,6 +77,8 @@ class SettingsManager(context: Context) {
     private val KEY_ENABLE_AUTO_UPDATE_CHECK = booleanPreferencesKey(SettingsKeys.ENABLE_AUTO_UPDATE_CHECK)
     private val KEY_ENABLE_CLICK_POETRY = booleanPreferencesKey(SettingsKeys.ENABLE_CLICK_POETRY)
     private val KEY_CLICK_POETRY_PRIVACY_ACKED = booleanPreferencesKey(SettingsKeys.CLICK_POETRY_PRIVACY_ACKED)
+    private val KEY_DEVELOPER_MODE_ENABLED = booleanPreferencesKey(SettingsKeys.DEVELOPER_MODE_ENABLED)
+    private val KEY_CLICK_POETRY_PROBABILITY = intPreferencesKey(SettingsKeys.CLICK_POETRY_PROBABILITY)
     private val KEY_WALLPAPER_PATH = stringPreferencesKey(SettingsKeys.WALLPAPER_PATH)
     private val KEY_WALLPAPER_BLUR = doublePreferencesKey(SettingsKeys.WALLPAPER_BLUR)
     private val KEY_PRIVACY_VERSION_SHOWN = stringPreferencesKey(SettingsKeys.PRIVACY_VERSION_SHOWN)
@@ -183,6 +185,16 @@ class SettingsManager(context: Context) {
         prefs[KEY_CLICK_POETRY_PRIVACY_ACKED] ?: SettingsKeys.Defaults.CLICK_POETRY_PRIVACY_ACKED
     }
 
+    /** 开发者选项解锁状态流（默认未解锁）。 */
+    val developerModeEnabledFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_DEVELOPER_MODE_ENABLED] ?: SettingsKeys.Defaults.DEVELOPER_MODE_ENABLED
+    }
+
+    /** 单击取诗概率流（0–100，默认 100）。 */
+    val clickPoetryProbabilityFlow: Flow<Int> = dataStore.data.map { prefs ->
+        prefs[KEY_CLICK_POETRY_PROBABILITY] ?: SettingsKeys.Defaults.CLICK_POETRY_PROBABILITY
+    }
+
     /** 主界面背景壁纸路径流（空串 = 默认纯色）。 */
     val wallpaperPathFlow: Flow<String> = dataStore.data.map { prefs ->
         prefs[KEY_WALLPAPER_PATH] ?: SettingsKeys.Defaults.WALLPAPER_PATH
@@ -249,6 +261,14 @@ class SettingsManager(context: Context) {
     /** 点击取诗的启用隐私告知是否已确认（默认未确认）。 */
     fun isClickPoetryPrivacyAcked(): Boolean =
         currentPrefs()[KEY_CLICK_POETRY_PRIVACY_ACKED] ?: SettingsKeys.Defaults.CLICK_POETRY_PRIVACY_ACKED
+
+    /** 开发者选项是否已解锁（默认未解锁）。 */
+    fun isDeveloperModeEnabled(): Boolean =
+        currentPrefs()[KEY_DEVELOPER_MODE_ENABLED] ?: SettingsKeys.Defaults.DEVELOPER_MODE_ENABLED
+
+    /** 单击取诗概率（0–100，默认 100）。悬浮窗单击时同步读，按概率决定是否取诗。 */
+    fun getClickPoetryProbability(): Int =
+        currentPrefs()[KEY_CLICK_POETRY_PROBABILITY] ?: SettingsKeys.Defaults.CLICK_POETRY_PROBABILITY
 
     /** 主界面背景壁纸路径（空串 = 默认纯色）。 */
     fun getWallpaperPath(): String = currentPrefs()[KEY_WALLPAPER_PATH] ?: SettingsKeys.Defaults.WALLPAPER_PATH
@@ -352,6 +372,17 @@ class SettingsManager(context: Context) {
     /** 记录点击取诗的启用隐私告知已确认（只写 true，幂等）。 */
     suspend fun setClickPoetryPrivacyAcked() {
         cachedPrefs = dataStore.edit { prefs -> prefs[KEY_CLICK_POETRY_PRIVACY_ACKED] = true }
+    }
+
+    /** 解锁开发者选项（只写 true，幂等；不提供回关入口是有意口径）。 */
+    suspend fun setDeveloperModeEnabled() {
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_DEVELOPER_MODE_ENABLED] = true }
+    }
+
+    /** 写入单击取诗概率，越界值钳到 [0, 100]。 */
+    suspend fun setClickPoetryProbability(percent: Int) {
+        val clamped = percent.coerceIn(0, 100)
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_CLICK_POETRY_PROBABILITY] = clamped }
     }
 
     /** 记录已看过/已处理的隐私政策版本号。 */

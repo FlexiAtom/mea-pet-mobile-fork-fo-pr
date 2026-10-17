@@ -5,6 +5,7 @@ import com.meapet.mobile.client.test.FakeHttpClientEngine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -75,6 +76,14 @@ class ClickPoetryFetcherTest {
         val fetcher = ClickPoetryFetcher(engine, maxAttempts = 2, logger = { logs.add(it) })
         assertNull(fetcher.fetch())
         assertEquals(2, engine.requests.size)
+    }
+
+    @Test
+    fun `概率门控：roll 严格小于概率才命中`() {
+        assertFalse(ClickPoetryFetcher.rollHits(0, 0)) // 0 = 从不
+        assertTrue(ClickPoetryFetcher.rollHits(100, 99)) // 100 = 每次
+        assertTrue(ClickPoetryFetcher.rollHits(50, 49))
+        assertFalse(ClickPoetryFetcher.rollHits(50, 50))
     }
 
     @Test

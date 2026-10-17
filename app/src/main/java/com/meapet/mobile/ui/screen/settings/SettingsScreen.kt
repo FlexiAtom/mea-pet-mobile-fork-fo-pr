@@ -66,6 +66,7 @@ private enum class SettingsPage(val title: String) {
     VOICE("语音"),
     ABOUT("关于"),
     POLICY("隐私政策"),
+    DEVELOPER("开发者选项"),
 }
 
 /**
@@ -196,7 +197,7 @@ fun SettingsScreen(
                     }
 
                     SettingsPage.ABOUT -> {
-                        SettingsCard { AppInfoSection() }
+                        SettingsCard { AppInfoSection(settingsViewModel) }
                         SettingsCard { UpdateSection(state, settingsViewModel, darkTheme) }
                         SettingsCard {
                             PrivacySection(
@@ -211,6 +212,10 @@ fun SettingsScreen(
 
                     // 政策全文不套卡片：长文本直接铺开更好读
                     SettingsPage.POLICY -> PrivacyPolicyContent()
+
+                    SettingsPage.DEVELOPER -> {
+                        SettingsCard { DeveloperSection(state, settingsViewModel) }
+                    }
                 }
 
                 Spacer(Modifier.height(24.dp))
@@ -225,35 +230,55 @@ private fun RootPage(
     state: SettingsUiState,
     onNavigate: (SettingsPage) -> Unit
 ) {
-    val entries = listOf(
-        SettingsEntry(
-            page = SettingsPage.PROVIDER,
-            iconRes = R.drawable.ic_settings_provider,
-            summary = state.model.ifBlank { "未设置模型" }
-        ),
-        SettingsEntry(
-            page = SettingsPage.CHAT,
-            iconRes = R.drawable.ic_settings_chat,
-            summary = "System Prompt、" + if (state.enableMemory) "记忆已开启" else "记忆已关闭"
-        ),
-        SettingsEntry(
-            page = SettingsPage.APPEARANCE,
-            iconRes = R.drawable.ic_settings_appearance,
-            summary = appearanceSummary(state)
-        ),
-        SettingsEntry(
-            page = SettingsPage.VOICE,
-            iconRes = R.drawable.ic_settings_voice,
-            summary = if (state.ttsMainEnabled || state.ttsOverlayEnabled) "发声已开启"
-                      else "发声已关闭"
-        ),
-        SettingsEntry(
-            page = SettingsPage.ABOUT,
-            iconRes = R.drawable.ic_settings_about,
-            summary = if (state.appVersion.isBlank()) "版本信息、隐私政策"
-                      else "版本 ${state.appVersion}"
-        ),
-    )
+    val entries = buildList {
+        add(
+            SettingsEntry(
+                page = SettingsPage.PROVIDER,
+                iconRes = R.drawable.ic_settings_provider,
+                summary = state.model.ifBlank { "未设置模型" }
+            )
+        )
+        add(
+            SettingsEntry(
+                page = SettingsPage.CHAT,
+                iconRes = R.drawable.ic_settings_chat,
+                summary = "System Prompt、" + if (state.enableMemory) "记忆已开启" else "记忆已关闭"
+            )
+        )
+        add(
+            SettingsEntry(
+                page = SettingsPage.APPEARANCE,
+                iconRes = R.drawable.ic_settings_appearance,
+                summary = appearanceSummary(state)
+            )
+        )
+        add(
+            SettingsEntry(
+                page = SettingsPage.VOICE,
+                iconRes = R.drawable.ic_settings_voice,
+                summary = if (state.ttsMainEnabled || state.ttsOverlayEnabled) "发声已开启"
+                          else "发声已关闭"
+            )
+        )
+        add(
+            SettingsEntry(
+                page = SettingsPage.ABOUT,
+                iconRes = R.drawable.ic_settings_about,
+                summary = if (state.appVersion.isBlank()) "版本信息、隐私政策"
+                          else "版本 ${state.appVersion}"
+            )
+        )
+        // 开发者选项：关于页连点 5 下版本号解锁后才出现在入口列表
+        if (state.developerModeEnabled) {
+            add(
+                SettingsEntry(
+                    page = SettingsPage.DEVELOPER,
+                    iconRes = R.drawable.ic_settings_about,
+                    summary = "单击取诗概率 ${state.clickPoetryProbability}%"
+                )
+            )
+        }
+    }
 
     Surface(
         modifier = Modifier

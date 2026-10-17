@@ -384,7 +384,8 @@ class FloatingLive2dService : Service() {
      */
     private fun showTapPoetry() {
         val container = (applicationContext as? MeaPetApplication)?.container ?: return
-        if (!container.settingsManager.isClickPoetryEnabled()) return
+        // 与主界面共用同一道门控：开关 + 开发者选项概率（0=从不，100=每次）
+        if (!container.clickPoetryGateHit()) return
         poetryJob?.cancel()
         poetryJob = serviceScope.launch {
             val line = container.clickPoetryFetcher.fetch() ?: return@launch

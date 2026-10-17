@@ -74,6 +74,11 @@ data class SettingsUiState(
     val clickPoetryEnabled: Boolean = SettingsKeys.Defaults.ENABLE_CLICK_POETRY,
     /** 启用取诗的第三方请求告知是否已确认过（首次开启弹窗用）。 */
     val clickPoetryPrivacyAcked: Boolean = SettingsKeys.Defaults.CLICK_POETRY_PRIVACY_ACKED,
+    // ── 开发者选项 ──
+    /** 开发者选项是否已解锁（关于页连点 5 下版本号）。 */
+    val developerModeEnabled: Boolean = SettingsKeys.Defaults.DEVELOPER_MODE_ENABLED,
+    /** 单击取诗概率（0–100），仅在点击取诗开启时生效。 */
+    val clickPoetryProbability: Int = SettingsKeys.Defaults.CLICK_POETRY_PROBABILITY,
     // ── 背景壁纸 ──
     /** 主界面背景壁纸文件绝对路径（空串 = 默认纯色）。 */
     val wallpaperPath: String = SettingsKeys.Defaults.WALLPAPER_PATH,
@@ -118,6 +123,8 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
             enableAutoUpdateCheck = settingsManager.isAutoUpdateCheckEnabled(),
             clickPoetryEnabled = settingsManager.isClickPoetryEnabled(),
             clickPoetryPrivacyAcked = settingsManager.isClickPoetryPrivacyAcked(),
+            developerModeEnabled = settingsManager.isDeveloperModeEnabled(),
+            clickPoetryProbability = settingsManager.getClickPoetryProbability(),
             wallpaperPath = settingsManager.getWallpaperPath(),
             wallpaperBlur = settingsManager.getWallpaperBlur()
         )
@@ -155,6 +162,8 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
         // 点击取诗
         subscribe(settingsManager.enableClickPoetryFlow) { s, e -> s.copy(clickPoetryEnabled = e) }
         subscribe(settingsManager.clickPoetryPrivacyAckedFlow) { s, e -> s.copy(clickPoetryPrivacyAcked = e) }
+        subscribe(settingsManager.developerModeEnabledFlow) { s, e -> s.copy(developerModeEnabled = e) }
+        subscribe(settingsManager.clickPoetryProbabilityFlow) { s, p -> s.copy(clickPoetryProbability = p) }
 
         // 背景壁纸
         subscribe(settingsManager.wallpaperPathFlow) { s, p -> s.copy(wallpaperPath = p) }
@@ -307,6 +316,18 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
     /** 记录"启用取诗的第三方请求告知"已确认（只写 true）。 */
     fun acknowledgeClickPoetryPrivacy() {
         viewModelScope.launch { settingsManager.setClickPoetryPrivacyAcked() }
+    }
+
+    // ── 开发者选项 ──────────────────────────────────
+
+    /** 解锁开发者选项（关于页连点 5 下版本号触发；只写 true，幂等）。 */
+    fun enableDeveloperMode() {
+        viewModelScope.launch { settingsManager.setDeveloperModeEnabled() }
+    }
+
+    /** 写入单击取诗概率，越界值钳到 [0, 100]。 */
+    fun updateClickPoetryProbability(percent: Int) {
+        viewModelScope.launch { settingsManager.setClickPoetryProbability(percent) }
     }
 
     /**

@@ -43,6 +43,14 @@ class Live2dDelegate private constructor() {
         @Volatile
         var ttsPlayingChecker: (() -> Boolean)? = null
 
+        /**
+         * 单击取诗 hook（app 容器注入，见 AppContainer.wireMainScreenClickPoetry）。
+         * 轻触命中模型区域时调用；返回 true = 本次轻触被取诗流程认领（异步取诗并展示），
+         * 不再触发分区语音；返回 false = 走原有分区语音。GL 线程调用，须快速返回。
+         */
+        @Volatile
+        var clickPoetryTapHandler: (() -> Boolean)? = null
+
         fun getInstance(): Live2dDelegate {
             return instance ?: synchronized(this) {
                 instance ?: Live2dDelegate().also { instance = it }
@@ -285,16 +293,13 @@ class Live2dDelegate private constructor() {
     // ── 触摸分区定义 ──
 
     /**
-     * 检测触摸分区。
-     * @return (显示文本, 子目录名, 文件名)，不在模型区域内则 null
+     * 检测触摸分区。调用前须已过 [isInsideModel]。
+     * @return (显示文本, 子目录名, 文件名)，语音目录为空则 null
      */
     private fun detectZone(x: Float, y: Float): Triple<String, String, String>? {
         if (windowWidth <= 0 || windowHeight <= 0) return null
         val nx = (x / windowWidth) * 2f - 1f
         val ny = -((y / windowHeight) * 2f - 1f)
-
-        // 模型实际占屏区域
-        if (nx < -0.45f || nx > 0.45f || ny < -0.44f || ny > 0.66f) return null
 
         // 从上往下 6/10 分割线
         val splitY = 0.00f
@@ -315,13 +320,23 @@ class Live2dDelegate private constructor() {
         return Triple(textFromFilename(file), dir, file)
     }
 
+    /** 模型实际占屏区域（触摸分区与单击取诗的判定基准）。 */
+    private fun isInsideModel(x: Float, y: Float): Boolean {
+        if (windowWidth <= 0 || windowHeight <= 0) return false
+        val nx = (x / windowWidth) * 2f - 1f
+        val ny = -((y / windowHeight) * 2f - 1f)
+        return nx in -0.45f..0.45f && ny in -0.44f..0.66f
+    }
+
     fun onTouchEnd(x: Float, y: Float) {
         mouseX = x; mouseY = y
         isCaptured = false
         Live2dManager.getInstance().onDrag(0.0f, 0.0f)
 
         // 检测轻触 → 分区反馈（仅在聊天页启用，防止设置页穿透）
-        if (zoneTouchEnabled && isTap(x, y)) {
+        if (zoneTouchEnabled && isTap(x, y) && isInsideModel(x, y)) {
+            // 单击取诗优先于分区语音：handler 返回 true = 本次轻触已被取诗流程认领
+            if (clickPoetryTapHandler?.invoke() == true) return
             val zone = detectZone(x, y)
             if (zone != null) {
                 val (text, dir, file) = zone

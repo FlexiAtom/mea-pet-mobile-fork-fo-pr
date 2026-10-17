@@ -26,6 +26,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,11 +56,13 @@ private const val LIVE2D_MODEL_SOURCE_URL = "https://www.bilibili.com/video/BV1A
  * 同属一个信息域，分散两处会让用户记两个入口。
  */
 @Composable
-internal fun AppInfoSection() {
+internal fun AppInfoSection(viewModel: SettingsViewModel) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
     val appVersion = remember(context) { AppInfo.readVersion(context) }
     val linkStyle = MaterialTheme.typography.bodySmall
+    // 连点版本号 5 下解锁开发者选项（Android 惯例彩蛋形状）；解锁后计数无副作用
+    var versionTaps by remember { mutableIntStateOf(0) }
 
     SectionTitle("应用信息")
 
@@ -74,7 +77,17 @@ internal fun AppInfoSection() {
     Text(
         "版本 $appVersion",
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.clickable {
+            versionTaps++
+            if (versionTaps >= 5) {
+                versionTaps = 0
+                viewModel.enableDeveloperMode()
+                android.widget.Toast.makeText(
+                    context, "开发者选项已启用", android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     )
 
     Spacer(Modifier.height(10.dp))

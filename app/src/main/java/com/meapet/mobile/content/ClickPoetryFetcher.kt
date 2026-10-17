@@ -49,4 +49,12 @@ class ClickPoetryFetcher(
         }
         return null
     }
+
+    companion object {
+        /**
+         * 概率门控（开发者选项"单击取诗概率"）：roll ∈ [0, 100)，命中条件 roll < 概率。
+         * 0 = 从不，100 = 每次。纯函数便于单测，随机数由调用侧注入。
+         */
+        fun rollHits(probabilityPercent: Int, roll: Int): Boolean = roll < probabilityPercent
+    }
 }

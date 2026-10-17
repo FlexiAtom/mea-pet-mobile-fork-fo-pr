@@ -109,6 +109,9 @@ class MainActivity : ComponentActivity() {
             d.wallpaperBlur = container.settingsManager.getWallpaperBlur().toFloat()
         } catch (_: Exception) {}
 
+        // 主界面单击取诗：与悬浮窗同一道门控（开关 + 概率），命中即异步取诗走 tap 消息通路
+        container.wireMainScreenClickPoetry()
+
         insetsController = WindowCompat.getInsetsController(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }

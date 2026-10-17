@@ -7,6 +7,8 @@ import com.meapet.mobile.BuildConfig
 import com.meapet.mobile.client.KtorHttpClientEngine
 import com.meapet.mobile.client.OpenAiCompatibleClient
 import com.meapet.mobile.content.ClickPoetryFetcher
+import com.meapet.mobile.chat.ChatMessage
+import com.meapet.mobile.chat.ChatRole
 import com.meapet.mobile.chat.ChatService
 import com.meapet.mobile.chat.ConversationManager
 import com.meapet.mobile.chat.ConversationStore
@@ -216,6 +218,41 @@ class AppContainer(
         // TTS 开始播放时停掉未完的触摸语音
         TtsManager.onPlaybackStart = {
             com.meapet.mobile.live2d.Live2dDelegate.getInstance().stopTouchVoices()
+        }
+    }
+
+    // ── 点击取诗 ──────────────────────────────────────
+
+    /**
+     * 单击取诗门控：总开关 + 开发者选项概率（0=从不，100=每次）。
+     * 同步读内存快照，任意线程可调；悬浮窗与主界面共用这一道闸。
+     */
+    fun clickPoetryGateHit(): Boolean {
+        if (!settingsManager.isClickPoetryEnabled()) return false
+        return ClickPoetryFetcher.rollHits(
+            settingsManager.getClickPoetryProbability(),
+            kotlin.random.Random.nextInt(100)
+        )
+    }
+
+    /**
+     * 接线主界面单击取诗（对齐悬浮窗/桌面语义）：点一下桌宠，命中门控即异步出网取诗，
+     * 诗句经 [Live2dManager.emitTapMessage] 走既有 tap 消息通路（聊天页系统气泡），
+     * 并按主界面语音开关朗读。命中时本次轻触不再触发分区语音。
+     * MainActivity.onCreate 调用；重复调用幂等（只是覆盖 hook）。
+     */
+    fun wireMainScreenClickPoetry() {
+        com.meapet.mobile.live2d.Live2dDelegate.clickPoetryTapHandler = {
+            val hit = clickPoetryGateHit()
+            if (hit) applicationScope.launch {
+                val line = clickPoetryFetcher.fetch() ?: return@launch
+                com.meapet.mobile.live2d.Live2dManager.emitTapMessage(line)
+                ttsManager.speak(
+                    ChatMessage(role = ChatRole.assistant, content = line),
+                    TtsManager.Source.MAIN
+                )
+            }
+            hit
         }
     }
 

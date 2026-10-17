@@ -82,6 +82,8 @@ class SettingsViewModelTest {
         whenever(settingsManager.isAutoUpdateCheckEnabled()).thenReturn(true)
         whenever(settingsManager.isClickPoetryEnabled()).thenReturn(false)
         whenever(settingsManager.isClickPoetryPrivacyAcked()).thenReturn(false)
+        whenever(settingsManager.isDeveloperModeEnabled()).thenReturn(false)
+        whenever(settingsManager.getClickPoetryProbability()).thenReturn(100)
         whenever(settingsManager.getWallpaperPath()).thenReturn("")
         whenever(settingsManager.getWallpaperBlur()).thenReturn(0.0)
 
@@ -108,6 +110,8 @@ class SettingsViewModelTest {
         whenever(settingsManager.enableAutoUpdateCheckFlow).thenReturn(MutableStateFlow(true))
         whenever(settingsManager.enableClickPoetryFlow).thenReturn(MutableStateFlow(false))
         whenever(settingsManager.clickPoetryPrivacyAckedFlow).thenReturn(MutableStateFlow(false))
+        whenever(settingsManager.developerModeEnabledFlow).thenReturn(MutableStateFlow(false))
+        whenever(settingsManager.clickPoetryProbabilityFlow).thenReturn(MutableStateFlow(100))
         whenever(settingsManager.wallpaperPathFlow).thenReturn(MutableStateFlow(""))
         whenever(settingsManager.wallpaperBlurFlow).thenReturn(MutableStateFlow(0.0))
     }

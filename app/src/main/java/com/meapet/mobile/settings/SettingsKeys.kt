@@ -45,6 +45,15 @@ object SettingsKeys {
     /** 启用取诗那一刻的一次性隐私告知是否已确认（见 VoiceSettings 的弹窗）。 */
     const val CLICK_POETRY_PRIVACY_ACKED = "click_poetry_privacy_acked"
 
+    // ── 开发者选项 ────────────────────────────────────
+    /**
+     * 开发者选项是否已解锁（关于页连点 5 下版本号启用）。
+     * 解锁后设置根页出现「开发者选项」入口，内含实验性调节项。
+     */
+    const val DEVELOPER_MODE_ENABLED = "developer_mode_enabled"
+    /** 单击悬浮桌宠时实际取诗的概率（0–100），仅在点击取诗开关开启时生效。 */
+    const val CLICK_POETRY_PROBABILITY = "click_poetry_probability"
+
     // ── 隐私政策 ──────────────────────────────────────
     /**
      * 用户最近一次已看过/已处理的隐私政策版本号。
@@ -93,6 +102,11 @@ object SettingsKeys {
         // 点击取诗（三源默认全关口径：新能力出厂关闭）
         const val ENABLE_CLICK_POETRY = false
         const val CLICK_POETRY_PRIVACY_ACKED = false
+
+        // 开发者选项
+        const val DEVELOPER_MODE_ENABLED = false
+        /** 取诗概率默认 100：开关一旦打开，行为与无概率门控时完全一致。 */
+        const val CLICK_POETRY_PROBABILITY = 100
 
         // 隐私政策
         /** 已看过/已处理的隐私政策版本号；空串表示从未处理（首次启动）。 */
