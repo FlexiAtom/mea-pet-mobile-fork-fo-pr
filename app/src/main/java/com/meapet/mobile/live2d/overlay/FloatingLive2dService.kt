@@ -72,6 +72,15 @@ class FloatingLive2dService : Service() {
     private var tapCount = 0
     private val pendingShowMenu = Runnable { showMenu() }
 
+    /**
+     * 单击取诗：首击后等 [TAP_INTERVAL_MS] 确认不是双击/三击再触发（延迟确认，与双击开菜单同模式）。
+     * 启用与否在 [showTapPoetry] 内查设置（同步读内存快照，无磁盘 IO）。
+     */
+    private val pendingShowPoetry = Runnable { showTapPoetry() }
+
+    /** 取诗在途任务：连击升级成菜单/关闭、或服务销毁时取消，避免旧请求结果盖到窗上。 */
+    private var poetryJob: kotlinx.coroutines.Job? = null
+
     /** 悬浮窗子窗口相关协程作用域（Main），onDestroy 时取消。 */
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -149,6 +158,7 @@ class FloatingLive2dService : Service() {
         // 避免服务销毁后 Handler 任务仍引用已移除的视图
         serviceScope.cancel()
         mainHandler.removeCallbacks(pendingShowMenu)
+        mainHandler.removeCallbacks(pendingShowPoetry)
         inputWindow?.hide()
         inputWindow = null
         menuWindow?.destroy()
@@ -348,16 +358,44 @@ class FloatingLive2dService : Service() {
         lastTapTime = now
 
         when {
+            tapCount == 1 -> {
+                // 可能是单击：等一个连击窗口，若没有第二击再取诗（避免误触双击/三击时抢跑）
+                mainHandler.removeCallbacks(pendingShowPoetry)
+                mainHandler.postDelayed(pendingShowPoetry, TAP_INTERVAL_MS)
+            }
             tapCount == 2 -> {
-                // 等片刻确认不是第三击再开菜单，避免与"三击关闭"冲突
+                // 已确认不是单击，撤掉待触发的取诗；再等片刻确认不是第三击才开菜单
+                mainHandler.removeCallbacks(pendingShowPoetry)
                 mainHandler.removeCallbacks(pendingShowMenu)
                 mainHandler.postDelayed(pendingShowMenu, TAP_CONFIRM_MS)
             }
             tapCount >= 3 -> {
+                mainHandler.removeCallbacks(pendingShowPoetry)
                 mainHandler.removeCallbacks(pendingShowMenu)
                 Log.d(TAG, "Triple-tap: closing overlay")
                 stopSelf()
             }
+        }
+    }
+
+    /**
+     * 单击取诗：仅当设置开启时执行。取文在 [ClickPoetryFetcher] 的两层超时预算内进行，
+     * 命中则以气泡展示并按悬浮窗语音开关朗读；失败静默回退（取文侧已留日志）。
+     */
+    private fun showTapPoetry() {
+        val container = (applicationContext as? MeaPetApplication)?.container ?: return
+        if (!container.settingsManager.isClickPoetryEnabled()) return
+        poetryJob?.cancel()
+        poetryJob = serviceScope.launch {
+            val line = container.clickPoetryFetcher.fetch() ?: return@launch
+            bubbleWindow?.addBubble(line)
+            container.ttsManager.speak(
+                com.meapet.mobile.chat.ChatMessage(
+                    role = com.meapet.mobile.chat.ChatRole.assistant,
+                    content = line
+                ),
+                com.meapet.mobile.tts.TtsManager.Source.OVERLAY
+            )
         }
     }
 

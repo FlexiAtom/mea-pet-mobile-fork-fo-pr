@@ -36,6 +36,15 @@ object SettingsKeys {
     /** 启动时自动检查更新（默认开启；关闭后仅在关于页手动检测）。 */
     const val ENABLE_AUTO_UPDATE_CHECK = "enable_auto_update_check"
 
+    // ── 点击取诗（hitokoto）─────────────────────────
+    /**
+     * 单击悬浮桌宠时从 hitokoto 取一句诗（默认关闭，须在设置里显式开启；
+     * 每一档可独立关是本案长期口径，不是首版妥协）。
+     */
+    const val ENABLE_CLICK_POETRY = "enable_click_poetry"
+    /** 启用取诗那一刻的一次性隐私告知是否已确认（见 VoiceSettings 的弹窗）。 */
+    const val CLICK_POETRY_PRIVACY_ACKED = "click_poetry_privacy_acked"
+
     // ── 隐私政策 ──────────────────────────────────────
     /**
      * 用户最近一次已看过/已处理的隐私政策版本号。
@@ -80,6 +89,10 @@ object SettingsKeys {
 
         // 更新
         const val ENABLE_AUTO_UPDATE_CHECK = true
+
+        // 点击取诗（三源默认全关口径：新能力出厂关闭）
+        const val ENABLE_CLICK_POETRY = false
+        const val CLICK_POETRY_PRIVACY_ACKED = false
 
         // 隐私政策
         /** 已看过/已处理的隐私政策版本号；空串表示从未处理（首次启动）。 */

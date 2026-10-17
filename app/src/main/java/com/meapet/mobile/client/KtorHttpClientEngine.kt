@@ -18,16 +18,24 @@ import io.ktor.http.contentType
  * 基于 Ktor Client (CIO) 的默认 [HttpClientEngine] 实现。
  *
  * 该实现与 [OpenAiCompatibleClient] 完全解耦，可替换为 OkHttp、Apache 或测试 Fake。
+ *
+ * 默认超时按 LLM 非流式长回复场景放宽到 5 分钟；短预算场景（如点击取文）
+ * 应另建实例并传入各自的超时参数，不与 LLM 共用同一引擎。
  */
-class KtorHttpClientEngine : HttpClientEngine {
+class KtorHttpClientEngine(
+    private val connectTimeoutMillis: Long = 30_000,
+    private val requestTimeoutMillis: Long = 300_000,
+    private val socketTimeoutMillis: Long = 300_000
+) : HttpClientEngine {
 
     private val client = HttpClient(CIO) {
         expectSuccess = false
+        // install 块内的裸名会解析到 HttpTimeoutConfig 自身的可空属性（receiver 遮蔽构造参数），
+        // 必须用 this@KtorHttpClientEngine 限定，否则超时被静默设成 null。
         install(HttpTimeout) {
-            // LLM 非流式长回复场景：整体与 socket 超时放宽到 5 分钟，连接仍 30 秒快速失败
-            requestTimeoutMillis = 300_000
-            connectTimeoutMillis = 30_000
-            socketTimeoutMillis = 300_000
+            this.connectTimeoutMillis = this@KtorHttpClientEngine.connectTimeoutMillis
+            this.requestTimeoutMillis = this@KtorHttpClientEngine.requestTimeoutMillis
+            this.socketTimeoutMillis = this@KtorHttpClientEngine.socketTimeoutMillis
         }
     }
 

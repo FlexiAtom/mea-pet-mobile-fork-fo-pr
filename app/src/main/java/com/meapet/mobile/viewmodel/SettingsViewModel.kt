@@ -70,6 +70,10 @@ data class SettingsUiState(
     val isCheckingUpdate: Boolean = false,
     val updateMessage: String? = null,
     val updateReleaseUrl: String? = null,
+    // ── 点击取诗 ──
+    val clickPoetryEnabled: Boolean = SettingsKeys.Defaults.ENABLE_CLICK_POETRY,
+    /** 启用取诗的第三方请求告知是否已确认过（首次开启弹窗用）。 */
+    val clickPoetryPrivacyAcked: Boolean = SettingsKeys.Defaults.CLICK_POETRY_PRIVACY_ACKED,
     // ── 背景壁纸 ──
     /** 主界面背景壁纸文件绝对路径（空串 = 默认纯色）。 */
     val wallpaperPath: String = SettingsKeys.Defaults.WALLPAPER_PATH,
@@ -112,6 +116,8 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
             ttsModelUrlConfigured = container.config.ttsModelBaseUrl.isNotBlank(),
             chatBubbleAlpha = settingsManager.getChatBubbleAlpha(),
             enableAutoUpdateCheck = settingsManager.isAutoUpdateCheckEnabled(),
+            clickPoetryEnabled = settingsManager.isClickPoetryEnabled(),
+            clickPoetryPrivacyAcked = settingsManager.isClickPoetryPrivacyAcked(),
             wallpaperPath = settingsManager.getWallpaperPath(),
             wallpaperBlur = settingsManager.getWallpaperBlur()
         )
@@ -145,6 +151,10 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
 
         // 更新
         subscribe(settingsManager.enableAutoUpdateCheckFlow) { s, e -> s.copy(enableAutoUpdateCheck = e) }
+
+        // 点击取诗
+        subscribe(settingsManager.enableClickPoetryFlow) { s, e -> s.copy(clickPoetryEnabled = e) }
+        subscribe(settingsManager.clickPoetryPrivacyAckedFlow) { s, e -> s.copy(clickPoetryPrivacyAcked = e) }
 
         // 背景壁纸
         subscribe(settingsManager.wallpaperPathFlow) { s, p -> s.copy(wallpaperPath = p) }
@@ -285,6 +295,18 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
     /** 切换启动自动检查更新（默认开启）。 */
     fun updateEnableAutoUpdateCheck(enabled: Boolean) {
         viewModelScope.launch { settingsManager.setEnableAutoUpdateCheck(enabled) }
+    }
+
+    // ── 点击取诗 ────────────────────────────────────
+
+    /** 开关点击取诗（每次拨动落盘）。 */
+    fun updateClickPoetryEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.setClickPoetryEnabled(enabled) }
+    }
+
+    /** 记录"启用取诗的第三方请求告知"已确认（只写 true）。 */
+    fun acknowledgeClickPoetryPrivacy() {
+        viewModelScope.launch { settingsManager.setClickPoetryPrivacyAcked() }
     }
 
     /**

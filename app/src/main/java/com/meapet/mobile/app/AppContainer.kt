@@ -6,6 +6,7 @@ import android.util.Log
 import com.meapet.mobile.BuildConfig
 import com.meapet.mobile.client.KtorHttpClientEngine
 import com.meapet.mobile.client.OpenAiCompatibleClient
+import com.meapet.mobile.content.ClickPoetryFetcher
 import com.meapet.mobile.chat.ChatService
 import com.meapet.mobile.chat.ConversationManager
 import com.meapet.mobile.chat.ConversationStore
@@ -66,10 +67,28 @@ class AppContainer(
 ) {
     companion object {
         private const val TAG = "AppContainer"
+
+        /** 点击取诗单发请求的连接/整体/socket 超时（毫秒），短档，独立于 LLM 的 300s。 */
+        private const val CLICK_POETRY_REQUEST_TIMEOUT_MS = 3_000L
     }
     /** 设置管理器（独立，无依赖） */
     val settingsManager: SettingsManager by lazy {
         SettingsManager(context)
+    }
+
+    /**
+     * 点击取诗（hitokoto）：独立 KtorHttpClientEngine 实例，超时压到短档，
+     * 不与服务 LLM 长回复的 apiClient 共用（同一 client 无法同时服务 5 分钟 LLM 与 8 秒取文）。
+     */
+    val clickPoetryFetcher: ClickPoetryFetcher by lazy {
+        ClickPoetryFetcher(
+            engine = KtorHttpClientEngine(
+                connectTimeoutMillis = CLICK_POETRY_REQUEST_TIMEOUT_MS,
+                requestTimeoutMillis = CLICK_POETRY_REQUEST_TIMEOUT_MS,
+                socketTimeoutMillis = CLICK_POETRY_REQUEST_TIMEOUT_MS
+            ),
+            logger = { Log.w("ClickPoetry", it) }
+        )
     }
 
     /** OpenAI 兼容 HTTP 客户端。可通过 [reloadClient] 在运行时重建。 */

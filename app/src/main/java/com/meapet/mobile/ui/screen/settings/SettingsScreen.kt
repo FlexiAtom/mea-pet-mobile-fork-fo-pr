@@ -192,6 +192,7 @@ fun SettingsScreen(
 
                     SettingsPage.VOICE -> {
                         SettingsCard { TtsSection(state, settingsViewModel, darkTheme) }
+                        SettingsCard { ClickPoetrySection(state, settingsViewModel, darkTheme) }
                     }
 
                     SettingsPage.ABOUT -> {

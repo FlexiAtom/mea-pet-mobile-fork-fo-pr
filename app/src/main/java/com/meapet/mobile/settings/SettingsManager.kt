@@ -75,6 +75,8 @@ class SettingsManager(context: Context) {
     private val KEY_TTS_LENGTH_SCALE = doublePreferencesKey(SettingsKeys.TTS_LENGTH_SCALE)
     private val KEY_CHAT_BUBBLE_ALPHA = doublePreferencesKey(SettingsKeys.CHAT_BUBBLE_ALPHA)
     private val KEY_ENABLE_AUTO_UPDATE_CHECK = booleanPreferencesKey(SettingsKeys.ENABLE_AUTO_UPDATE_CHECK)
+    private val KEY_ENABLE_CLICK_POETRY = booleanPreferencesKey(SettingsKeys.ENABLE_CLICK_POETRY)
+    private val KEY_CLICK_POETRY_PRIVACY_ACKED = booleanPreferencesKey(SettingsKeys.CLICK_POETRY_PRIVACY_ACKED)
     private val KEY_WALLPAPER_PATH = stringPreferencesKey(SettingsKeys.WALLPAPER_PATH)
     private val KEY_WALLPAPER_BLUR = doublePreferencesKey(SettingsKeys.WALLPAPER_BLUR)
     private val KEY_PRIVACY_VERSION_SHOWN = stringPreferencesKey(SettingsKeys.PRIVACY_VERSION_SHOWN)
@@ -171,6 +173,16 @@ class SettingsManager(context: Context) {
         prefs[KEY_ENABLE_AUTO_UPDATE_CHECK] ?: SettingsKeys.Defaults.ENABLE_AUTO_UPDATE_CHECK
     }
 
+    /** 点击取诗开关流（默认关闭）。 */
+    val enableClickPoetryFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_ENABLE_CLICK_POETRY] ?: SettingsKeys.Defaults.ENABLE_CLICK_POETRY
+    }
+
+    /** 点击取诗的启用隐私告知是否已确认流（默认未确认）。 */
+    val clickPoetryPrivacyAckedFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_CLICK_POETRY_PRIVACY_ACKED] ?: SettingsKeys.Defaults.CLICK_POETRY_PRIVACY_ACKED
+    }
+
     /** 主界面背景壁纸路径流（空串 = 默认纯色）。 */
     val wallpaperPathFlow: Flow<String> = dataStore.data.map { prefs ->
         prefs[KEY_WALLPAPER_PATH] ?: SettingsKeys.Defaults.WALLPAPER_PATH
@@ -229,6 +241,14 @@ class SettingsManager(context: Context) {
     /** 是否启用启动自动检查更新（默认开启）。 */
     fun isAutoUpdateCheckEnabled(): Boolean =
         currentPrefs()[KEY_ENABLE_AUTO_UPDATE_CHECK] ?: SettingsKeys.Defaults.ENABLE_AUTO_UPDATE_CHECK
+
+    /** 是否启用点击取诗（默认关闭）。 */
+    fun isClickPoetryEnabled(): Boolean =
+        currentPrefs()[KEY_ENABLE_CLICK_POETRY] ?: SettingsKeys.Defaults.ENABLE_CLICK_POETRY
+
+    /** 点击取诗的启用隐私告知是否已确认（默认未确认）。 */
+    fun isClickPoetryPrivacyAcked(): Boolean =
+        currentPrefs()[KEY_CLICK_POETRY_PRIVACY_ACKED] ?: SettingsKeys.Defaults.CLICK_POETRY_PRIVACY_ACKED
 
     /** 主界面背景壁纸路径（空串 = 默认纯色）。 */
     fun getWallpaperPath(): String = currentPrefs()[KEY_WALLPAPER_PATH] ?: SettingsKeys.Defaults.WALLPAPER_PATH
@@ -322,6 +342,16 @@ class SettingsManager(context: Context) {
 
     suspend fun setEnableAutoUpdateCheck(enabled: Boolean) {
         cachedPrefs = dataStore.edit { prefs -> prefs[KEY_ENABLE_AUTO_UPDATE_CHECK] = enabled }
+    }
+
+    /** 开关点击取诗（设置页每次拨动都落盘）。 */
+    suspend fun setClickPoetryEnabled(enabled: Boolean) {
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_ENABLE_CLICK_POETRY] = enabled }
+    }
+
+    /** 记录点击取诗的启用隐私告知已确认（只写 true，幂等）。 */
+    suspend fun setClickPoetryPrivacyAcked() {
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_CLICK_POETRY_PRIVACY_ACKED] = true }
     }
 
     /** 记录已看过/已处理的隐私政策版本号。 */
