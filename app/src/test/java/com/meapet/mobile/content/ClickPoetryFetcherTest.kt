@@ -1,6 +1,7 @@
 package com.meapet.mobile.content
 
 import com.meapet.mobile.client.HttpResponse
+import com.meapet.mobile.client.RequestBody
 import com.meapet.mobile.client.test.FakeHttpClientEngine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
@@ -8,7 +9,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.net.URLEncoder
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
@@ -87,36 +87,26 @@ class ClickPoetryFetcherTest {
         assertFalse(ClickPoetryFetcher.rollHits(50, 50))
     }
 
-    // ── 检索线 fetchSearch ───────────────────────────
+    // ── 检索线 fetchCrawler（Tavily）─────────────────
 
-    private fun wikisourceResponse(body: String) =
-        HttpResponse(200, body.toByteArray(), "application/json")
-
-    private val hitRow = """{"query":{"search":[{"title":"靜夜思","snippet":"牀前看月光，疑是地上霜。"}]}}"""
+    private fun tavilyResponse(body: String) = HttpResponse(200, body.toByteArray(), "application/json")
 
     @Test
-    fun `检索线 命中返回展示行且简体归一`() = runTest {
-        val engine = FakeHttpClientEngine { wikisourceResponse(hitRow) }
-        val outcome = ClickPoetryFetcher(engine).fetchSearch(listOf("静夜思"))
+    fun `检索线 命中返回素材编号块且简体归一`() = runTest {
+        val engine = FakeHttpClientEngine {
+            tavilyResponse(
+                """{"results":[{"title":"靜夜思","content":"牀前看月光，疑是地上霜。"},""" +
+                    """{"title":"李白","content":"唐代诗人，字太白。"}]}"""
+            )
+        }
+        val outcome = ClickPoetryFetcher(engine).fetchCrawler(listOf("静夜思"))
         assertTrue(outcome.ok)
-        assertEquals("床前看月光，疑是地上霜。\n—— 静夜思", outcome.line)
-        // 原样变体一发即中，不再打繁體改写那发
+        assertEquals(
+            "1. 静夜思｜床前看月光，疑是地上霜。\n2. 李白｜唐代诗人，字太白。",
+            outcome.line
+        )
+        // 素材块只交总结那发，不直接进气泡；一发即回，不再打变体
         assertEquals(1, engine.requests.size)
-    }
-
-    @Test
-    fun `检索线 单词两变体全数不过校验时理由必非空`() = runTest {
-        val noise = """{"query":{"search":[{"title":"四季歌","snippet":"只見床前明月光冬季到來雪茫茫"}]}}"""
-        val engine = FakeHttpClientEngine { wikisourceResponse(noise) }
-        val logs = mutableListOf<String>()
-        val outcome = ClickPoetryFetcher(engine, logger = { logs.add(it) })
-            .fetchSearch(listOf("床前明月光"))
-        assertFalse(outcome.ok)
-        // 随机抽的就是这唯一一词，两个变体（原样 + 繁體改写）各发一发
-        assertEquals(2, engine.requests.size)
-        assertNotNull(outcome.failureReason)
-        assertTrue(outcome.failureReason!!.contains("未通过命中校验"))
-        assertTrue(logs.last().contains("检索线取文失败"))
     }
 
     @Test
@@ -128,45 +118,58 @@ class ClickPoetryFetcherTest {
             perAttemptTimeoutMillis = 30_000,
             wordPicker = { words -> words.last() }
         )
-        fetcher.fetchSearch((1..6).map { "词$it" })
-        val urls = engine.requests.map { it.url }
-        // 只发被抽中的「词6」：原样 + 繁體（詞6）两变体封顶，其他词一请求不发
-        assertEquals(2, urls.size)
-        val picked = URLEncoder.encode("词6", "UTF-8")
-        val traditional = URLEncoder.encode("詞6", "UTF-8")
-        assertTrue(urls.all { it.contains(picked) || it.contains(traditional) })
+        fetcher.fetchCrawler((1..6).map { "词$it" })
+        // 爬虫线没有变体重试：只发被抽中的「词6」一发
+        val req = engine.requests.single()
+        val body = (req.body as RequestBody.Json).content
+        assertTrue(body.contains("\"query\":\"词6\""))
         for (i in 1..5) {
-            assertTrue(urls.none { it.contains(URLEncoder.encode("词$i", "UTF-8")) })
+            assertFalse(body.contains("词$i"))
         }
     }
 
     @Test
     fun `检索线 空关键词不发任何请求`() = runTest {
-        val engine = FakeHttpClientEngine { wikisourceResponse(hitRow) }
-        val outcome = ClickPoetryFetcher(engine).fetchSearch(listOf("  ", ""))
+        val engine = FakeHttpClientEngine { tavilyResponse("""{"results":[]}""") }
+        val outcome = ClickPoetryFetcher(engine).fetchCrawler(listOf("  ", ""))
         assertFalse(outcome.ok)
         assertEquals("未配置关键词", outcome.failureReason)
         assertEquals(0, engine.requests.size)
     }
 
     @Test
-    fun `检索线 端到端预算用完即断 不再外发`() = runTest {
-        var now = 0L
+    fun `检索线 非 2xx 档名进理由`() = runTest {
+        val logs = mutableListOf<String>()
+        val engine = FakeHttpClientEngine { HttpResponse(503, ByteArray(0), null) }
+        val outcome = ClickPoetryFetcher(engine, logger = { logs.add(it) }).fetchCrawler(listOf("静夜思"))
+        assertFalse(outcome.ok)
+        assertEquals("HTTP 503", outcome.failureReason)
+        assertTrue(logs.last().contains("检索线取文失败"))
+    }
+
+    @Test
+    fun `检索线 单发超时档名前置（虚拟时间）`() = runTest {
         val engine = FakeHttpClientEngine {
-            now += 3_000
-            HttpResponse(500, ByteArray(0), null)
+            delay(10_000) // 慢滴/挂死形状：靠每档超时封顶
+            tavilyResponse("""{"results":[{"content":"太晚了"}]}""")
         }
+        val outcome = ClickPoetryFetcher(engine, perAttemptTimeoutMillis = 1_000).fetchCrawler(listOf("静夜思"))
+        assertFalse(outcome.ok)
+        assertTrue(outcome.failureReason!!.startsWith("超时：「静夜思」1000ms 内未完成"))
+    }
+
+    @Test
+    fun `检索线 端到端预算用完即断 不再外发`() = runTest {
+        val engine = FakeHttpClientEngine { HttpResponse(500, ByteArray(0), null) }
         val fetcher = ClickPoetryFetcher(
             engine = engine,
-            perAttemptTimeoutMillis = 3_000,
-            e2eBudgetMillis = 3_000,
-            clock = { now }
+            e2eBudgetMillis = 0,
+            clock = { 0L }
         )
-        // 预算 3000：第一发发出后归零，繁體变体前剩余 ≤0 → 断，不再外发
-        val outcome = fetcher.fetchSearch(listOf("静夜思"))
+        val outcome = fetcher.fetchCrawler(listOf("静夜思"))
         assertFalse(outcome.ok)
-        assertEquals(1, engine.requests.size)
         assertTrue(outcome.failureReason!!.contains("端到端预算"))
+        assertEquals(0, engine.requests.size)
     }
 
     @Test

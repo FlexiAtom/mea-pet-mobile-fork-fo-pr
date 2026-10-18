@@ -13,7 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.meapet.mobile.content.HitokotoClient
-import com.meapet.mobile.content.WikisourceClient
+import com.meapet.mobile.content.TavilyClient
 import com.meapet.mobile.settings.parseClickPoetryKeywords
 import com.meapet.mobile.viewmodel.SettingsUiState
 import com.meapet.mobile.viewmodel.SettingsViewModel
@@ -76,10 +76,10 @@ internal fun ClickPoetrySection(
         )
     }
 
-    // ── 检索线（Wikisource）──
+    // ── 检索线（Tavily 网页检索）──
     SettingsSwitchRow(
-        label = "检索线（按关键词检索词条）",
-        description = "开启后单击从关键词表里随机抽一个词检索 Wikisource 文献库，命中后交给对话模型" +
+        label = "检索线（按关键词检索网页）",
+        description = "开启后单击从关键词表里随机抽一个词做 Tavily 网页检索，取回的资料片段交给对话模型" +
             "总结成不超过 60 字的一句进气泡——关键词不限于诗题，任意你感兴趣的词都可以；" +
             "任一环失败时交还分区语音并报错，不静默换随机线、也不直接念检索原文",
         checked = state.clickPoetrySearchEnabled,
@@ -125,12 +125,12 @@ internal fun ClickPoetrySection(
             text = {
                 Text(
                     "开启后这一路会做两件事：\n" +
-                        "· 每次点击从「检索关键词」表里随机抽一个词，作为检索请求发到第三方文献库" +
-                        "（不含你的其他文字与屏幕内容），请求地址：${WikisourceClient.API_BASE}；\n" +
-                        "· 命中的文字（已繁→简归一的一截词条正文）会发给你配置的 API 地址，" +
-                        "让对话模型总结成不超过 60 字的一句再进气泡与语音——这截文字是第三方内容，" +
+                        "· 每次点击从「检索关键词」表里随机抽一个词，作为检索请求发到第三方网页检索服务" +
+                        "（不含你的其他文字与屏幕内容），请求地址：${TavilyClient.URL}；\n" +
+                        "· 检索回来的第三方网页正文片段（已繁→简归一、单条截断）会发给你配置的 API 地址，" +
+                        "让对话模型总结成不超过 60 字的一句再进气泡与语音——这些文字是第三方内容，" +
                         "只影响气泡与语音里说什么；\n" +
-                        "· 失败回退：连不上/超时/没有过命中校验/模型总结失败时，" +
+                        "· 失败回退：连不上/超时/检索没有可用文本/模型总结失败时，" +
                         "这一发交还分区语音并给出报错提示，不会静默念检索原文或别的。"
                 )
             },

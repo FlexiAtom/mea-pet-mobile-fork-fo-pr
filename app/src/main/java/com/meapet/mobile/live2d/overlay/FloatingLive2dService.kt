@@ -396,7 +396,7 @@ class FloatingLive2dService : Service() {
         poetryJob = serviceScope.launch {
             if (line == com.meapet.mobile.content.ClickPoetryLine.SEARCH) {
                 val keywords = container.settingsManager.getClickPoetrySearchKeywords()
-                val search = container.clickPoetryFetcher.fetchSearch(keywords)
+                val search = container.clickPoetryFetcher.fetchCrawler(keywords)
                 val outcome = if (search.ok) {
                     container.clickPoetrySummarizer.summarize(checkNotNull(search.line))
                 } else {

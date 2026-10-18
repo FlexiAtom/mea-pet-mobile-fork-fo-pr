@@ -74,7 +74,7 @@ data class SettingsUiState(
     val clickPoetryEnabled: Boolean = SettingsKeys.Defaults.ENABLE_CLICK_POETRY,
     /** 启用取诗的第三方请求告知是否已确认过（首次开启弹窗用）。 */
     val clickPoetryPrivacyAcked: Boolean = SettingsKeys.Defaults.CLICK_POETRY_PRIVACY_ACKED,
-    // ── 点击取诗 · 检索线（Wikisource）──
+    // ── 点击取诗 · 检索线（Tavily 网页检索）──
     val clickPoetrySearchEnabled: Boolean = SettingsKeys.Defaults.ENABLE_CLICK_POETRY_SEARCH,
     /** 检索线启用告知是否已确认——未确认不放行"关键词外发"这一路。 */
     val clickPoetrySearchPrivacyAcked: Boolean = SettingsKeys.Defaults.CLICK_POETRY_SEARCH_PRIVACY_ACKED,

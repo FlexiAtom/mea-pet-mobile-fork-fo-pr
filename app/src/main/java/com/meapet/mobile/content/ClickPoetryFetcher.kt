@@ -15,7 +15,7 @@ enum class ClickPoetryLine { NONE, RANDOM, SEARCH }
 /**
  * 检索线一次取文的结果。形状承桌面 `FeedbackResult` 的判语（feedback.py:54-66）：
  * **不存在** "line==null 且 failureReason 也为空" 的形状——"静默失败且不留下日志"
- * 正是被防的那件事。
+ * 正是被防的那件事。`line` 在爬虫线装的是**多行素材块**（交总结那发改写后才见天日）。
  */
 data class SearchOutcome(val line: String?, val failureReason: String?) {
     val ok: Boolean get() = line != null
@@ -39,7 +39,7 @@ data class SearchOutcome(val line: String?, val failureReason: String?) {
  * 2. 重试只跨时间、不跨解析结果——Ktor CIO 无等价原语，移动端**不硬造**（提案 T3 判语保留）。
  *
  * 单源 hitokoto（[fetch]）无换源，失败即回退到"这一发不给诗"（返回 null），由调用侧决定展示；
- * 检索线（[fetchSearch]）失败给出**必非空**的理由（[SearchOutcome]），由调用侧按人工裁决
+ * 检索线（[fetchCrawler]）失败给出**必非空**的理由（[SearchOutcome]），由调用侧按人工裁决
  * 交还分区语音并报错——两条线各自失败，互不静默顶替。
  *
  * @param clock 时间源（默认 [System.currentTimeMillis]），单元测试注入虚拟时钟验证预算格。
@@ -56,7 +56,7 @@ class ClickPoetryFetcher(
 ) {
 
     private val client = HitokotoClient(engine)
-    private val wikisourceClient = WikisourceClient(engine)
+    private val crawlerClient = TavilyClient(engine)
 
     /**
      * 在共享端到端预算内取一句诗，成功返回可直接展示的文本，失败/预算耗尽返回 null。
@@ -78,44 +78,43 @@ class ClickPoetryFetcher(
     }
 
     /**
-     * 检索线：**随机抽一个关键词**（人工裁决 2026-10-18，不整表轮转），只轮转它的
-     * 原样/繁體两个变体，第一条**过了命中校验**的就返回。
+     * 检索线（爬虫）：**随机抽一个关键词**（人工裁决 2026-10-18），一发 Tavily 网页检索，
+     * 至多 [TavilyClient.MAX_ITEMS] 条素材编号拼成一块返回（交 [ClickPoetrySummarizer] 改写）。
      *
-     * 预算形状仍是共享一条端到端 deadline、每发取 `min(每档上限, 剩余)`，
-     * 预算用完即断不再发。随机口径让每次点击的期待面摊到整张词表，
-     * 而不是前几个词永远吃掉预算、后面的词永远轮不上。
+     * 源切换的来由（人工裁决 2026-10-19：「应当为获取源选择失误，这个场景不应该是
+     * Wikisource」）：真机日志实证现代词在古籍库命中的全是判文书/公司名录页，命中校验
+     * 按设计拦下——闸没坏，是库不对。爬虫线**没有命中校验**（PC `fetch_crawler_material`
+     * 同形）：网页检索按相关性给素材，对不对由总结那发与隔离标记兜。
      *
-     * 失败理由取 misses 前 3 条拼接，**必非空**；调用侧按人工裁决
-     * 把这一发交还分区语音并报错，不静默。
+     * 预算形状不变：端到端 deadline、每发取 `min(每档上限, 剩余)`，预算用完即断不再发。
+     * 失败理由取 misses 前 3 条拼接，**必非空**；调用侧按人工裁决把这一发交还
+     * 分区语音并报错，不静默。
      */
-    suspend fun fetchSearch(keywords: List<String>): SearchOutcome {
+    suspend fun fetchCrawler(keywords: List<String>): SearchOutcome {
         val words = keywords.map { it.trim() }.filter { it.isNotEmpty() }
         if (words.isEmpty()) return SearchOutcome.failure("未配置关键词")
         val word = wordPicker(words)
         val deadline = clock() + e2eBudgetMillis
         val misses = mutableListOf<String>()
-        for (variant in HitVerifier.queryVariants(word)) {
-            val remaining = deadline - clock()
-            if (remaining <= 0L) {
-                // 预算理由放最前：misses 聚合截到 3 条，"没发出去是因为预算没了"不能被截掉
-                val reason = (("端到端预算（${e2eBudgetMillis}ms）用完") +
-                    if (misses.isEmpty()) "" else " · 此前：" + misses.take(3).joinToString(" | "))
-                logger("检索线取文失败：$reason")
-                return SearchOutcome.failure(reason)
-            }
-            val budget = minOf(perAttemptTimeoutMillis, remaining)
-            var hit: SearchHit? = null
-            var completed = false
-            withTimeoutOrNull(budget) {
-                hit = wikisourceClient.search(variant) { misses.add(it) }
-                completed = true
-                true
-            }
-            if (!completed) misses.add("超时：「$variant」${budget}ms 内未完成")
-            if (hit != null) {
-                logger("检索线命中：「$variant」")
-                return SearchOutcome.success(hit!!.toDisplayLine())
-            }
+        val remaining = deadline - clock()
+        if (remaining <= 0L) {
+            val reason = "端到端预算（${e2eBudgetMillis}ms）用完"
+            logger("检索线取文失败：$reason")
+            return SearchOutcome.failure(reason)
+        }
+        val budget = minOf(perAttemptTimeoutMillis, remaining)
+        var materials: List<String>? = null
+        var completed = false
+        withTimeoutOrNull(budget) {
+            materials = crawlerClient.search(word) { misses.add(it) }
+            completed = true
+            true
+        }
+        if (!completed) misses.add("超时：「$word」${budget}ms 内未完成")
+        val items = materials
+        if (items != null && items.isNotEmpty()) {
+            logger("检索线命中：「$word」素材 ${items.size} 条")
+            return SearchOutcome.success(items.mapIndexed { i, line -> "${i + 1}. $line" }.joinToString("\n"))
         }
         val reason = if (misses.isEmpty()) "没有可用的检索结果" else misses.take(3).joinToString(" | ")
         logger("检索线取文失败：$reason")

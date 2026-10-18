@@ -282,7 +282,7 @@ class AppContainer(
      * 诗句经 [Live2dManager.emitTapMessage] 走既有 tap 消息通路（聊天页系统气泡），
      * 并按主界面语音开关朗读。命中时本次轻触不再触发分区语音。
      *
-     * 失败档统一（人工裁决 2026-10-18）：检索线出网/超时/校验不过，或命中后
+     * 失败档统一（人工裁决 2026-10-18）：检索线出网/超时/检索没有可用文本，或命中后
      * **模型总结未成功**——都交还分区语音（[Live2dDelegate.triggerZoneFeedback]）
      * 并气泡报错，不静默念检索原文。线程口径见该方法注释。
      * MainActivity.onCreate 调用；重复调用幂等（只是覆盖 hook）。
@@ -305,7 +305,7 @@ class AppContainer(
                 ClickPoetryLine.SEARCH -> {
                     val keywords = settingsManager.getClickPoetrySearchKeywords()
                     applicationScope.launch {
-                        val search = clickPoetryFetcher.fetchSearch(keywords)
+                        val search = clickPoetryFetcher.fetchCrawler(keywords)
                         // 命中≠结束：还要过一次性 LLM 总结成 ≤60 字那一句（人工裁决 2026-10-18）
                         val outcome = if (search.ok) {
                             clickPoetrySummarizer.summarize(checkNotNull(search.line))

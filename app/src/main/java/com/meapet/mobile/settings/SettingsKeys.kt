@@ -45,7 +45,7 @@ object SettingsKeys {
     /** 启用取诗那一刻的一次性隐私告知是否已确认（见 VoiceSettings 的弹窗）。 */
     const val CLICK_POETRY_PRIVACY_ACKED = "click_poetry_privacy_acked"
 
-    // ── 点击取诗 · 检索线（Wikisource）────────────────
+    // ── 点击取诗 · 检索线（Tavily 网页检索）──────────
     /**
      * 关键词检索线开关（默认关）。开启并确认告知后，点击取诗优先走检索线
      * （人工裁决 2026-10-18：检索线失败交还分区语音并报错，不静默换随机线）。
