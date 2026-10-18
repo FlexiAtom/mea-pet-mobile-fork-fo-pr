@@ -113,6 +113,7 @@ class WikisourceClient(
                 val name = t.javaClass.simpleName
                 if (name.endsWith("UnknownHostException") || name.endsWith("ConnectException") ||
                     name.endsWith("TimeoutException") || name.endsWith("NoRouteToHostException") ||
+                    name.endsWith("UnresolvedAddressException") ||
                     name.startsWith("SSLHandshake") || name.startsWith("SSLException") ||
                     name.startsWith("SSLProtocol") || name.startsWith("SSLCert")
                 ) {

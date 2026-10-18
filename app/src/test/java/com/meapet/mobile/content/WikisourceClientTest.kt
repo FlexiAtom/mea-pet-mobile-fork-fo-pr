@@ -114,6 +114,11 @@ class WikisourceClientTest {
             "Fail to connect", java.net.SocketTimeoutException("connect timed out")
         )
         assertTrue(WikisourceClient.failureOf(wrapped).startsWith("网络不可达"))
+        // 真机日志实证（2026-10-19 总结链）：NIO 系的解析失败也要归网络不可达，不裸报类名
+        assertTrue(
+            WikisourceClient.failureOf(java.nio.channels.UnresolvedAddressException())
+                .startsWith("网络不可达")
+        )
         // 非网络异常不吞进这一档，照裸类名给（日志侧另有全文）
         assertEquals("IllegalArgumentException", WikisourceClient.failureOf(IllegalArgumentException("x")))
     }
