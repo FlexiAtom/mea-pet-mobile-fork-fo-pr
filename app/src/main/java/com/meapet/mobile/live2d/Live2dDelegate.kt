@@ -45,11 +45,13 @@ class Live2dDelegate private constructor() {
 
         /**
          * 单击取诗 hook（app 容器注入，见 AppContainer.wireMainScreenClickPoetry）。
-         * 轻触命中模型区域时调用；返回 true = 本次轻触被取诗流程认领（异步取诗并展示），
-         * 不再触发分区语音；返回 false = 走原有分区语音。GL 线程调用，须快速返回。
+         * 轻触命中模型区域时调用，坐标一并传入——检索线失败时容器要靠它把这一发
+         * 交还 [Live2dDelegate.triggerZoneFeedback]（人工裁决 2026-10-18）。
+         * 返回 true = 本次轻触被取诗流程认领（不再触发分区语音）；false = 走原分区语音。
+         * GL 线程调用，须快速返回。
          */
         @Volatile
-        var clickPoetryTapHandler: (() -> Boolean)? = null
+        var clickPoetryTapHandler: ((Float, Float) -> Boolean)? = null
 
         fun getInstance(): Live2dDelegate {
             return instance ?: synchronized(this) {
@@ -328,6 +330,28 @@ class Live2dDelegate private constructor() {
         return nx in -0.45f..0.45f && ny in -0.44f..0.66f
     }
 
+    /**
+     * 分区语音反馈：检测分区、互斥停 TTS、随机播一条并广播 tap 消息。
+     *
+     * 从 [onTouchEnd] 抽出，供取诗流程失败时容器**交还这一发**复用（人工裁决 2026-10-18：
+     * 检索线全部失败档统一 → 回退预制语音 + 报错提示）。线程口径与 onTouchEnd 现状一致：
+     * VoicePlayer 全读写走锁、emitTapMessage 是 tryEmit，GL 线程与协程线程皆可调用；
+     * 但**不做** isTap/isInsideModel 检查——那是触摸判定的事，交还时坐标早已成立。
+     */
+    fun triggerZoneFeedback(x: Float, y: Float) {
+        val zone = detectZone(x, y)
+        if (zone != null) {
+            val (text, dir, file) = zone
+            // 互斥：TTS 正在朗读时先停掉，再播触摸语音
+            if (ttsPlayingChecker?.invoke() == true) ttsStopper?.invoke()
+            // 先停止所有正在播放的语音（包括其他分区的），再播放新语音
+            stopAllVoices()
+            ensureVoicePlayer(dir)?.play(file)
+            // 广播消息到 ChatViewModel
+            Live2dManager.emitTapMessage(text)
+        }
+    }
+
     fun onTouchEnd(x: Float, y: Float) {
         mouseX = x; mouseY = y
         isCaptured = false
@@ -336,18 +360,8 @@ class Live2dDelegate private constructor() {
         // 检测轻触 → 分区反馈（仅在聊天页启用，防止设置页穿透）
         if (zoneTouchEnabled && isTap(x, y) && isInsideModel(x, y)) {
             // 单击取诗优先于分区语音：handler 返回 true = 本次轻触已被取诗流程认领
-            if (clickPoetryTapHandler?.invoke() == true) return
-            val zone = detectZone(x, y)
-            if (zone != null) {
-                val (text, dir, file) = zone
-                // 互斥：TTS 正在朗读时先停掉，再播触摸语音
-                if (ttsPlayingChecker?.invoke() == true) ttsStopper?.invoke()
-                // 先停止所有正在播放的语音（包括其他分区的），再播放新语音
-                stopAllVoices()
-                ensureVoicePlayer(dir)?.play(file)
-                // 广播消息到 ChatViewModel
-                Live2dManager.emitTapMessage(text)
-            }
+            if (clickPoetryTapHandler?.invoke(x, y) == true) return
+            triggerZoneFeedback(x, y)
         }
     }
 }

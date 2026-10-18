@@ -45,6 +45,22 @@ object SettingsKeys {
     /** 启用取诗那一刻的一次性隐私告知是否已确认（见 VoiceSettings 的弹窗）。 */
     const val CLICK_POETRY_PRIVACY_ACKED = "click_poetry_privacy_acked"
 
+    // ── 点击取诗 · 检索线（Wikisource）────────────────
+    /**
+     * 关键词检索线开关（默认关）。开启并确认告知后，点击取诗优先走检索线
+     * （人工裁决 2026-10-18：检索线失败交还分区语音并报错，不静默换随机线）。
+     */
+    const val ENABLE_CLICK_POETRY_SEARCH = "enable_click_poetry_search"
+    /** 检索线启用那一刻的一次性告知是否已确认——**关键词会作为检索词发往第三方**。 */
+    const val CLICK_POETRY_SEARCH_PRIVACY_ACKED = "click_poetry_search_privacy_acked"
+    /** 检索关键词预置表（逗号分隔；点击时不弹输入，承桌面 keywords[] 配置面形状）。 */
+    const val CLICK_POETRY_SEARCH_KEYWORDS = "click_poetry_search_keywords"
+    /**
+     * 检索线独立概率（0–100，开发者选项）。人工裁决 2026-10-18：两线各掷各的签——
+     * 共享一个概率会让检索线生效时把随机线挤成实际 0%。
+     */
+    const val CLICK_POETRY_SEARCH_PROBABILITY = "click_poetry_search_probability"
+
     // ── 开发者选项 ────────────────────────────────────
     /**
      * 开发者选项是否已解锁（关于页连点 5 下版本号启用）。
@@ -102,6 +118,14 @@ object SettingsKeys {
         // 点击取诗（三源默认全关口径：新能力出厂关闭）
         const val ENABLE_CLICK_POETRY = false
         const val CLICK_POETRY_PRIVACY_ACKED = false
+
+        // 点击取诗 · 检索线（同样出厂关闭；告知未确认不允许外发关键词）
+        const val ENABLE_CLICK_POETRY_SEARCH = false
+        const val CLICK_POETRY_SEARCH_PRIVACY_ACKED = false
+        /** 预置关键词表：诗题与作者混排，用户可在设置里改。 */
+        const val CLICK_POETRY_SEARCH_KEYWORDS = "静夜思,观沧海,将进酒,水调歌头,李白,杜甫"
+        /** 检索线概率默认 100：开关一旦生效，行为与无概率门控时完全一致（与随机线同口径）。 */
+        const val CLICK_POETRY_SEARCH_PROBABILITY = 100
 
         // 开发者选项
         const val DEVELOPER_MODE_ENABLED = false

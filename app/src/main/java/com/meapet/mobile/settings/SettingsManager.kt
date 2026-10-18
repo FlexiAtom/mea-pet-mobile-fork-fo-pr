@@ -77,6 +77,10 @@ class SettingsManager(context: Context) {
     private val KEY_ENABLE_AUTO_UPDATE_CHECK = booleanPreferencesKey(SettingsKeys.ENABLE_AUTO_UPDATE_CHECK)
     private val KEY_ENABLE_CLICK_POETRY = booleanPreferencesKey(SettingsKeys.ENABLE_CLICK_POETRY)
     private val KEY_CLICK_POETRY_PRIVACY_ACKED = booleanPreferencesKey(SettingsKeys.CLICK_POETRY_PRIVACY_ACKED)
+    private val KEY_ENABLE_CLICK_POETRY_SEARCH = booleanPreferencesKey(SettingsKeys.ENABLE_CLICK_POETRY_SEARCH)
+    private val KEY_CLICK_POETRY_SEARCH_PRIVACY_ACKED = booleanPreferencesKey(SettingsKeys.CLICK_POETRY_SEARCH_PRIVACY_ACKED)
+    private val KEY_CLICK_POETRY_SEARCH_KEYWORDS = stringPreferencesKey(SettingsKeys.CLICK_POETRY_SEARCH_KEYWORDS)
+    private val KEY_CLICK_POETRY_SEARCH_PROBABILITY = intPreferencesKey(SettingsKeys.CLICK_POETRY_SEARCH_PROBABILITY)
     private val KEY_DEVELOPER_MODE_ENABLED = booleanPreferencesKey(SettingsKeys.DEVELOPER_MODE_ENABLED)
     private val KEY_CLICK_POETRY_PROBABILITY = intPreferencesKey(SettingsKeys.CLICK_POETRY_PROBABILITY)
     private val KEY_WALLPAPER_PATH = stringPreferencesKey(SettingsKeys.WALLPAPER_PATH)
@@ -185,6 +189,26 @@ class SettingsManager(context: Context) {
         prefs[KEY_CLICK_POETRY_PRIVACY_ACKED] ?: SettingsKeys.Defaults.CLICK_POETRY_PRIVACY_ACKED
     }
 
+    /** 检索线开关流（默认关闭）。 */
+    val enableClickPoetrySearchFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_ENABLE_CLICK_POETRY_SEARCH] ?: SettingsKeys.Defaults.ENABLE_CLICK_POETRY_SEARCH
+    }
+
+    /** 检索线启用告知是否已确认流（默认未确认）。 */
+    val clickPoetrySearchPrivacyAckedFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_CLICK_POETRY_SEARCH_PRIVACY_ACKED] ?: SettingsKeys.Defaults.CLICK_POETRY_SEARCH_PRIVACY_ACKED
+    }
+
+    /** 检索关键词原文流（逗号分隔字符串，UI 编辑用；解析见 [getClickPoetrySearchKeywords]）。 */
+    val clickPoetrySearchKeywordsFlow: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_CLICK_POETRY_SEARCH_KEYWORDS] ?: SettingsKeys.Defaults.CLICK_POETRY_SEARCH_KEYWORDS
+    }
+
+    /** 检索线独立概率流（0–100，默认 100）。 */
+    val clickPoetrySearchProbabilityFlow: Flow<Int> = dataStore.data.map { prefs ->
+        prefs[KEY_CLICK_POETRY_SEARCH_PROBABILITY] ?: SettingsKeys.Defaults.CLICK_POETRY_SEARCH_PROBABILITY
+    }
+
     /** 开发者选项解锁状态流（默认未解锁）。 */
     val developerModeEnabledFlow: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[KEY_DEVELOPER_MODE_ENABLED] ?: SettingsKeys.Defaults.DEVELOPER_MODE_ENABLED
@@ -261,6 +285,26 @@ class SettingsManager(context: Context) {
     /** 点击取诗的启用隐私告知是否已确认（默认未确认）。 */
     fun isClickPoetryPrivacyAcked(): Boolean =
         currentPrefs()[KEY_CLICK_POETRY_PRIVACY_ACKED] ?: SettingsKeys.Defaults.CLICK_POETRY_PRIVACY_ACKED
+
+    /** 检索线开关（默认关闭）。 */
+    fun isClickPoetrySearchEnabled(): Boolean =
+        currentPrefs()[KEY_ENABLE_CLICK_POETRY_SEARCH] ?: SettingsKeys.Defaults.ENABLE_CLICK_POETRY_SEARCH
+
+    /** 检索线启用告知是否已确认（默认未确认；未确认不许外发关键词，桌面双闸同形）。 */
+    fun isClickPoetrySearchPrivacyAcked(): Boolean =
+        currentPrefs()[KEY_CLICK_POETRY_SEARCH_PRIVACY_ACKED] ?: SettingsKeys.Defaults.CLICK_POETRY_SEARCH_PRIVACY_ACKED
+
+    /** 检索关键词表：逗号/空白分隔解析、去空、按首次出现去重。 */
+    fun getClickPoetrySearchKeywords(): List<String> =
+        parseClickPoetryKeywords(getClickPoetrySearchKeywordsRaw())
+
+    /** 检索关键词表原文（设置页编辑框用）。 */
+    fun getClickPoetrySearchKeywordsRaw(): String =
+        currentPrefs()[KEY_CLICK_POETRY_SEARCH_KEYWORDS] ?: SettingsKeys.Defaults.CLICK_POETRY_SEARCH_KEYWORDS
+
+    /** 检索线独立概率（0–100，默认 100）：与随机线各掷各的签。 */
+    fun getClickPoetrySearchProbability(): Int =
+        currentPrefs()[KEY_CLICK_POETRY_SEARCH_PROBABILITY] ?: SettingsKeys.Defaults.CLICK_POETRY_SEARCH_PROBABILITY
 
     /** 开发者选项是否已解锁（默认未解锁）。 */
     fun isDeveloperModeEnabled(): Boolean =
@@ -374,6 +418,27 @@ class SettingsManager(context: Context) {
         cachedPrefs = dataStore.edit { prefs -> prefs[KEY_CLICK_POETRY_PRIVACY_ACKED] = true }
     }
 
+    /** 开关检索线（设置页每次拨动都落盘）。 */
+    suspend fun setClickPoetrySearchEnabled(enabled: Boolean) {
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_ENABLE_CLICK_POETRY_SEARCH] = enabled }
+    }
+
+    /** 记录检索线的启用告知已确认（只写 true，幂等）。 */
+    suspend fun setClickPoetrySearchPrivacyAcked() {
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_CLICK_POETRY_SEARCH_PRIVACY_ACKED] = true }
+    }
+
+    /** 写入检索关键词表（存原文，读时解析；空表不拦——生效判定在门控侧按"没词就不参与"处理）。 */
+    suspend fun setClickPoetrySearchKeywords(raw: String) {
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_CLICK_POETRY_SEARCH_KEYWORDS] = raw }
+    }
+
+    /** 写入检索线概率，越界值钳到 [0, 100]（与随机线 setter 同形）。 */
+    suspend fun setClickPoetrySearchProbability(percent: Int) {
+        val clamped = percent.coerceIn(0, 100)
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_CLICK_POETRY_SEARCH_PROBABILITY] = clamped }
+    }
+
     /** 解锁开发者选项（只写 true，幂等；不提供回关入口是有意口径）。 */
     suspend fun setDeveloperModeEnabled() {
         cachedPrefs = dataStore.edit { prefs -> prefs[KEY_DEVELOPER_MODE_ENABLED] = true }
@@ -404,3 +469,13 @@ class SettingsManager(context: Context) {
         Log.i(TAG, "All settings cleared")
     }
 }
+
+/**
+ * 解析检索关键词原文：接受中英文逗号、顿号与换行分隔，去空白项并按首次出现去重。
+ * 顶层纯函数便于单测；[SettingsManager.getClickPoetrySearchKeywords] 用同一口径。
+ */
+internal fun parseClickPoetryKeywords(raw: String): List<String> =
+    raw.split(',', '，', '、', '\n')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinct()

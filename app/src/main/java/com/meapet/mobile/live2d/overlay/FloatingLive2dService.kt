@@ -379,25 +379,46 @@ class FloatingLive2dService : Service() {
     }
 
     /**
-     * 单击取诗：仅当设置开启时执行。取文在 [ClickPoetryFetcher] 的两层超时预算内进行，
-     * 命中则以气泡展示并按悬浮窗语音开关朗读；失败静默回退（取文侧已留日志）。
+     * 单击取诗：仅当门控放行时执行。取文在 [ClickPoetryFetcher] 的两层超时预算内进行，
+     * 命中则以气泡展示并按悬浮窗语音开关朗读。
+     *
+     * 失败档（人工裁决 2026-10-18）：随机线失败静默回退（取文侧留日志）；
+     * 检索线失败报错——悬浮窗没有分区语音可交还，报错落成气泡文本，与主界面同档不同形。
      */
     private fun showTapPoetry() {
         val container = (applicationContext as? MeaPetApplication)?.container ?: return
-        // 与主界面共用同一道门控：开关 + 开发者选项概率（0=从不，100=每次）
-        if (!container.clickPoetryGateHit()) return
+        // 与主界面共用同一道门控：线路选择 + 开发者选项概率（0=从不，100=每次）
+        val line = container.clickPoetryGate()
+        if (line == com.meapet.mobile.content.ClickPoetryLine.NONE) return
         poetryJob?.cancel()
         poetryJob = serviceScope.launch {
-            val line = container.clickPoetryFetcher.fetch() ?: return@launch
-            bubbleWindow?.addBubble(line)
-            container.ttsManager.speak(
-                com.meapet.mobile.chat.ChatMessage(
-                    role = com.meapet.mobile.chat.ChatRole.assistant,
-                    content = line
-                ),
-                com.meapet.mobile.tts.TtsManager.Source.OVERLAY
-            )
+            if (line == com.meapet.mobile.content.ClickPoetryLine.SEARCH) {
+                val keywords = container.settingsManager.getClickPoetrySearchKeywords()
+                val outcome = container.clickPoetryFetcher.fetchSearch(keywords)
+                val text = outcome.line
+                if (text != null) {
+                    bubbleWindow?.addBubble(text)
+                    speakOverlay(text)
+                } else {
+                    bubbleWindow?.addBubble("关键词检索失败：${outcome.failureReason.orEmpty().take(60)}")
+                }
+            } else {
+                val text = container.clickPoetryFetcher.fetch() ?: return@launch
+                bubbleWindow?.addBubble(text)
+                speakOverlay(text)
+            }
         }
+    }
+
+    private fun speakOverlay(text: String) {
+        val container = (applicationContext as? MeaPetApplication)?.container ?: return
+        container.ttsManager.speak(
+            com.meapet.mobile.chat.ChatMessage(
+                role = com.meapet.mobile.chat.ChatRole.assistant,
+                content = text
+            ),
+            com.meapet.mobile.tts.TtsManager.Source.OVERLAY
+        )
     }
 
     private fun hideMenu() {

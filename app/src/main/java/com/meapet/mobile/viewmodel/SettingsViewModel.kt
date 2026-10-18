@@ -74,6 +74,14 @@ data class SettingsUiState(
     val clickPoetryEnabled: Boolean = SettingsKeys.Defaults.ENABLE_CLICK_POETRY,
     /** 启用取诗的第三方请求告知是否已确认过（首次开启弹窗用）。 */
     val clickPoetryPrivacyAcked: Boolean = SettingsKeys.Defaults.CLICK_POETRY_PRIVACY_ACKED,
+    // ── 点击取诗 · 检索线（Wikisource）──
+    val clickPoetrySearchEnabled: Boolean = SettingsKeys.Defaults.ENABLE_CLICK_POETRY_SEARCH,
+    /** 检索线启用告知是否已确认——未确认不放行"关键词外发"这一路。 */
+    val clickPoetrySearchPrivacyAcked: Boolean = SettingsKeys.Defaults.CLICK_POETRY_SEARCH_PRIVACY_ACKED,
+    /** 关键词表原文（逗号/顿号/换行分隔，设置页直接编辑这一格）。 */
+    val clickPoetrySearchKeywordsRaw: String = SettingsKeys.Defaults.CLICK_POETRY_SEARCH_KEYWORDS,
+    /** 检索线独立概率（0–100），仅检索线生效时参与掷签。 */
+    val clickPoetrySearchProbability: Int = SettingsKeys.Defaults.CLICK_POETRY_SEARCH_PROBABILITY,
     // ── 开发者选项 ──
     /** 开发者选项是否已解锁（关于页连点 5 下版本号）。 */
     val developerModeEnabled: Boolean = SettingsKeys.Defaults.DEVELOPER_MODE_ENABLED,
@@ -123,6 +131,10 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
             enableAutoUpdateCheck = settingsManager.isAutoUpdateCheckEnabled(),
             clickPoetryEnabled = settingsManager.isClickPoetryEnabled(),
             clickPoetryPrivacyAcked = settingsManager.isClickPoetryPrivacyAcked(),
+            clickPoetrySearchEnabled = settingsManager.isClickPoetrySearchEnabled(),
+            clickPoetrySearchPrivacyAcked = settingsManager.isClickPoetrySearchPrivacyAcked(),
+            clickPoetrySearchKeywordsRaw = settingsManager.getClickPoetrySearchKeywordsRaw(),
+            clickPoetrySearchProbability = settingsManager.getClickPoetrySearchProbability(),
             developerModeEnabled = settingsManager.isDeveloperModeEnabled(),
             clickPoetryProbability = settingsManager.getClickPoetryProbability(),
             wallpaperPath = settingsManager.getWallpaperPath(),
@@ -162,6 +174,10 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
         // 点击取诗
         subscribe(settingsManager.enableClickPoetryFlow) { s, e -> s.copy(clickPoetryEnabled = e) }
         subscribe(settingsManager.clickPoetryPrivacyAckedFlow) { s, e -> s.copy(clickPoetryPrivacyAcked = e) }
+        subscribe(settingsManager.enableClickPoetrySearchFlow) { s, e -> s.copy(clickPoetrySearchEnabled = e) }
+        subscribe(settingsManager.clickPoetrySearchPrivacyAckedFlow) { s, e -> s.copy(clickPoetrySearchPrivacyAcked = e) }
+        subscribe(settingsManager.clickPoetrySearchKeywordsFlow) { s, k -> s.copy(clickPoetrySearchKeywordsRaw = k) }
+        subscribe(settingsManager.clickPoetrySearchProbabilityFlow) { s, p -> s.copy(clickPoetrySearchProbability = p) }
         subscribe(settingsManager.developerModeEnabledFlow) { s, e -> s.copy(developerModeEnabled = e) }
         subscribe(settingsManager.clickPoetryProbabilityFlow) { s, p -> s.copy(clickPoetryProbability = p) }
 
@@ -316,6 +332,28 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
     /** 记录"启用取诗的第三方请求告知"已确认（只写 true）。 */
     fun acknowledgeClickPoetryPrivacy() {
         viewModelScope.launch { settingsManager.setClickPoetryPrivacyAcked() }
+    }
+
+    // ── 点击取诗 · 检索线 ────────────────────────────
+
+    /** 开关检索线（每次拨动落盘）。 */
+    fun updateClickPoetrySearchEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.setClickPoetrySearchEnabled(enabled) }
+    }
+
+    /** 记录"检索线关键词外发告知"已确认（只写 true）。 */
+    fun acknowledgeClickPoetrySearchPrivacy() {
+        viewModelScope.launch { settingsManager.setClickPoetrySearchPrivacyAcked() }
+    }
+
+    /** 写入检索关键词表原文（存原文，生效判定在门控侧）。 */
+    fun updateClickPoetrySearchKeywords(raw: String) {
+        viewModelScope.launch { settingsManager.setClickPoetrySearchKeywords(raw) }
+    }
+
+    /** 写入检索线概率（开发者选项；与随机线各自独立）。 */
+    fun updateClickPoetrySearchProbability(percent: Int) {
+        viewModelScope.launch { settingsManager.setClickPoetrySearchProbability(percent) }
     }
 
     // ── 开发者选项 ──────────────────────────────────

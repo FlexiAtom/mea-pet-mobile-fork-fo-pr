@@ -86,6 +86,77 @@ class ClickPoetryFetcherTest {
         assertFalse(ClickPoetryFetcher.rollHits(50, 50))
     }
 
+    // ── 检索线 fetchSearch ───────────────────────────
+
+    private fun wikisourceResponse(body: String) =
+        HttpResponse(200, body.toByteArray(), "application/json")
+
+    private val hitRow = """{"query":{"search":[{"title":"靜夜思","snippet":"牀前看月光，疑是地上霜。"}]}}"""
+
+    @Test
+    fun `检索线 命中返回展示行且简体归一`() = runTest {
+        val engine = FakeHttpClientEngine { wikisourceResponse(hitRow) }
+        val outcome = ClickPoetryFetcher(engine).fetchSearch(listOf("静夜思"))
+        assertTrue(outcome.ok)
+        assertEquals("床前看月光，疑是地上霜。\n—— 静夜思", outcome.line)
+        // 原样变体一发即中，不再打繁體改写那发
+        assertEquals(1, engine.requests.size)
+    }
+
+    @Test
+    fun `检索线 逐词逐变体轮转 全数不过校验时理由必非空`() = runTest {
+        val noise = """{"query":{"search":[{"title":"四季歌","snippet":"只見床前明月光冬季到來雪茫茫"}]}}"""
+        val engine = FakeHttpClientEngine { wikisourceResponse(noise) }
+        val logs = mutableListOf<String>()
+        val outcome = ClickPoetryFetcher(engine, logger = { logs.add(it) })
+            .fetchSearch(listOf("床前明月光"))
+        assertFalse(outcome.ok)
+        // 一个词两个变体（原样 + 繁體改写）各发一发
+        assertEquals(2, engine.requests.size)
+        assertNotNull(outcome.failureReason)
+        assertTrue(outcome.failureReason!!.contains("未通过命中校验"))
+        assertTrue(logs.last().contains("检索线取文失败"))
+    }
+
+    @Test
+    fun `检索线 空关键词不发任何请求`() = runTest {
+        val engine = FakeHttpClientEngine { wikisourceResponse(hitRow) }
+        val outcome = ClickPoetryFetcher(engine).fetchSearch(listOf("  ", ""))
+        assertFalse(outcome.ok)
+        assertEquals("未配置关键词", outcome.failureReason)
+        assertEquals(0, engine.requests.size)
+    }
+
+    @Test
+    fun `检索线 端到端预算用完即断 不再外发`() = runTest {
+        var now = 0L
+        val engine = FakeHttpClientEngine {
+            now += 3_000
+            HttpResponse(500, ByteArray(0), null)
+        }
+        val fetcher = ClickPoetryFetcher(
+            engine = engine,
+            perAttemptTimeoutMillis = 3_000,
+            e2eBudgetMillis = 8_000,
+            clock = { now }
+        )
+        // 8000ms 预算：第 1/2/3 发各扣 3000，第 4 发前剩余为负 → 断
+        val outcome = fetcher.fetchSearch(listOf("静夜思", "观沧海", "李白", "杜甫", "王维"))
+        assertFalse(outcome.ok)
+        assertEquals(3, engine.requests.size)
+        assertTrue(outcome.failureReason!!.contains("端到端预算"))
+    }
+
+    @Test
+    fun `检索线 轮转上限 4 词 超出部分不发`() = runTest {
+        val engine = FakeHttpClientEngine { HttpResponse(500, ByteArray(0), null) }
+        val fetcher = ClickPoetryFetcher(engine, e2eBudgetMillis = 100_000, perAttemptTimeoutMillis = 30_000)
+        fetcher.fetchSearch((1..6).map { "词$it" })
+        // 4 词 × 2 变体（每词的繁體改写与自身不同时才第二条；"词N" 繁简同形则只一发）
+        assertTrue(engine.requests.size <= 8)
+        assertTrue(engine.requests.size >= 4)
+    }
+
     @Test
     fun `文本处理：署名格式与超长截断`() {
         val longText = "长".repeat(Poem.MAX_TEXT_CHARS + 10)

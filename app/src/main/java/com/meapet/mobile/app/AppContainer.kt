@@ -7,6 +7,7 @@ import com.meapet.mobile.BuildConfig
 import com.meapet.mobile.client.KtorHttpClientEngine
 import com.meapet.mobile.client.OpenAiCompatibleClient
 import com.meapet.mobile.content.ClickPoetryFetcher
+import com.meapet.mobile.content.ClickPoetryLine
 import com.meapet.mobile.chat.ChatMessage
 import com.meapet.mobile.chat.ChatRole
 import com.meapet.mobile.chat.ChatService
@@ -72,6 +73,9 @@ class AppContainer(
 
         /** 点击取诗单发请求的连接/整体/socket 超时（毫秒），短档，独立于 LLM 的 300s。 */
         private const val CLICK_POETRY_REQUEST_TIMEOUT_MS = 3_000L
+
+        /** 检索线报错提示里失败理由的截断长度（理由全文进日志，气泡只给短的一截）。 */
+        private const val ERROR_REASON_MAX_CHARS = 60
     }
     /** 设置管理器（独立，无依赖） */
     val settingsManager: SettingsManager by lazy {
@@ -224,35 +228,87 @@ class AppContainer(
     // ── 点击取诗 ──────────────────────────────────────
 
     /**
-     * 单击取诗门控：总开关 + 开发者选项概率（0=从不，100=每次）。
-     * 同步读内存快照，任意线程可调；悬浮窗与主界面共用这一道闸。
+     * 检索线是否**生效**（桌面 `participating_sources` 双闸同形）：开关 + 已确认告知 +
+     * 关键词表非空。手改存储把 enabled 拧成 true 而没点过告知不算生效——不许外发关键词。
      */
-    fun clickPoetryGateHit(): Boolean {
-        if (!settingsManager.isClickPoetryEnabled()) return false
-        return ClickPoetryFetcher.rollHits(
-            settingsManager.getClickPoetryProbability(),
-            kotlin.random.Random.nextInt(100)
-        )
+    private fun isClickPoetrySearchLive(): Boolean =
+        settingsManager.isClickPoetrySearchEnabled() &&
+            settingsManager.isClickPoetrySearchPrivacyAcked() &&
+            settingsManager.getClickPoetrySearchKeywords().isNotEmpty()
+
+    /**
+     * 单击取诗门控：两线各自掷签、检索优先（人工裁决 2026-10-18，修复共享概率把
+     * 随机线实际命中率挤成 0 的问题）——检索线生效且有独立概率（开发者选项，
+     * 0=从不，100=每次）则先掷它；不中再掷随机线（原有概率）。两签皆不中=NONE。
+     * 同步读内存快照，任意线程可调；悬浮窗与主界面共用这一道闸。
+     *
+     * 注意口径：检索线**掷签不中**不等于"检索失败"——那只是本发没选中检索线，
+     * 随机线仍可命中；而检索线被选中后取文失败不回退随机线，交还分区语音并报错。
+     */
+    fun clickPoetryGate(): ClickPoetryLine {
+        if (isClickPoetrySearchLive() && ClickPoetryFetcher.rollHits(
+                settingsManager.getClickPoetrySearchProbability(),
+                kotlin.random.Random.nextInt(100)
+            )
+        ) {
+            return ClickPoetryLine.SEARCH
+        }
+        if (settingsManager.isClickPoetryEnabled() && ClickPoetryFetcher.rollHits(
+                settingsManager.getClickPoetryProbability(),
+                kotlin.random.Random.nextInt(100)
+            )
+        ) {
+            return ClickPoetryLine.RANDOM
+        }
+        return ClickPoetryLine.NONE
     }
 
     /**
      * 接线主界面单击取诗（对齐悬浮窗/桌面语义）：点一下桌宠，命中门控即异步出网取诗，
      * 诗句经 [Live2dManager.emitTapMessage] 走既有 tap 消息通路（聊天页系统气泡），
      * 并按主界面语音开关朗读。命中时本次轻触不再触发分区语音。
+     *
+     * 检索线失败档统一（人工裁决 2026-10-18）：出网/超时/校验不过 → 交还分区语音
+     * （[Live2dDelegate.triggerZoneFeedback]）并气泡报错。线程口径见该方法注释。
      * MainActivity.onCreate 调用；重复调用幂等（只是覆盖 hook）。
      */
     fun wireMainScreenClickPoetry() {
-        com.meapet.mobile.live2d.Live2dDelegate.clickPoetryTapHandler = {
-            val hit = clickPoetryGateHit()
-            if (hit) applicationScope.launch {
-                val line = clickPoetryFetcher.fetch() ?: return@launch
-                com.meapet.mobile.live2d.Live2dManager.emitTapMessage(line)
-                ttsManager.speak(
-                    ChatMessage(role = ChatRole.assistant, content = line),
-                    TtsManager.Source.MAIN
-                )
+        com.meapet.mobile.live2d.Live2dDelegate.clickPoetryTapHandler = { x, y ->
+            when (clickPoetryGate()) {
+                ClickPoetryLine.NONE -> false
+                ClickPoetryLine.RANDOM -> {
+                    applicationScope.launch {
+                        val line = clickPoetryFetcher.fetch() ?: return@launch
+                        com.meapet.mobile.live2d.Live2dManager.emitTapMessage(line)
+                        ttsManager.speak(
+                            ChatMessage(role = ChatRole.assistant, content = line),
+                            TtsManager.Source.MAIN
+                        )
+                    }
+                    true
+                }
+                ClickPoetryLine.SEARCH -> {
+                    val keywords = settingsManager.getClickPoetrySearchKeywords()
+                    applicationScope.launch {
+                        val outcome = clickPoetryFetcher.fetchSearch(keywords)
+                        val line = outcome.line
+                        if (line != null) {
+                            com.meapet.mobile.live2d.Live2dManager.emitTapMessage(line)
+                            ttsManager.speak(
+                                ChatMessage(role = ChatRole.assistant, content = line),
+                                TtsManager.Source.MAIN
+                            )
+                        } else {
+                            com.meapet.mobile.live2d.Live2dDelegate.getInstance()
+                                .triggerZoneFeedback(x, y)
+                            com.meapet.mobile.live2d.Live2dManager.emitTapMessage(
+                                "关键词检索失败：${outcome.failureReason?.take(ERROR_REASON_MAX_CHARS).orEmpty()}"
+                            )
+                        }
+                    }
+                    true
+                }
             }
-            hit
         }
     }
 

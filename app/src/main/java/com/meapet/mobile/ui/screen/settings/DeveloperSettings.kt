@@ -23,10 +23,11 @@ import com.meapet.mobile.viewmodel.SettingsViewModel
 // ═══════════════════════════════════════════════════
 
 /**
- * 开发者选项页：目前只有"单击取诗概率"一格。
+ * 开发者选项页：随机线/检索线两格独立概率。
  *
  * 概率是取诗开关之上的第二道闸：开关关 = 整条链不跑；开关开且概率 < 100 =
  * 每次单击按概率掷骰决定是否真的出网取诗。默认 100，行为与无此格时完全一致。
+ * 两线各自掷签、检索优先——共享单一概率曾把随机线实际命中率挤成 0（2026-10-18 修复）。
  */
 @Composable
 internal fun DeveloperSection(
@@ -63,6 +64,41 @@ internal fun DeveloperSection(
                     text = clamped.toString()
                 } else {
                     text = state.clickPoetryProbability.toString()
+                }
+            },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+    )
+
+    Spacer(Modifier.height(16.dp))
+
+    Text(
+        "检索线概率（关键词检索生效时参与掷签）：两线各自掷签、检索优先；" +
+            "0 = 从不，100 = 每次。默认 100，与随机线概率互不影响。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(Modifier.height(8.dp))
+
+    var searchText by remember(state.clickPoetrySearchProbability) {
+        mutableStateOf(state.clickPoetrySearchProbability.toString())
+    }
+    OutlinedTextField(
+        value = searchText,
+        onValueChange = { input ->
+            if (input.all { it.isDigit() } && input.length <= 3) searchText = input
+        },
+        label = { Text("检索线概率（%）") },
+        modifier = Modifier
+            .fillMaxWidth()
+            .saveOnFocusChange {
+                val parsed = searchText.toIntOrNull()
+                if (parsed != null) {
+                    val clamped = parsed.coerceIn(0, 100)
+                    viewModel.updateClickPoetrySearchProbability(clamped)
+                    searchText = clamped.toString()
+                } else {
+                    searchText = state.clickPoetrySearchProbability.toString()
                 }
             },
         singleLine = true,
