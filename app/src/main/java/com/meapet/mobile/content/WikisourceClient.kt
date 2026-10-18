@@ -69,7 +69,7 @@ class WikisourceClient(
                 .jsonObject["query"]?.jsonObject?.get("search")?.jsonArray
                 ?: return null.also { onMiss("响应里没有 query.search") }
             if (rows.isEmpty()) {
-                onMiss("「$variant」查无词条")
+                onMiss("查无词条：「$variant」")
                 return null
             }
             for (element in rows) {
@@ -77,7 +77,7 @@ class WikisourceClient(
                 val title = row["title"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
                 if (title.isEmpty()) continue
                 if (!HitVerifier.isHit(variant, title)) {
-                    onMiss("「$variant」→「${title.take(20)}」未通过命中校验")
+                    onMiss("未通过命中校验：「$variant」→「${title.take(20)}」")
                     continue
                 }
                 val snippet = cleanSnippet(row["snippet"]?.jsonPrimitive?.contentOrNull)

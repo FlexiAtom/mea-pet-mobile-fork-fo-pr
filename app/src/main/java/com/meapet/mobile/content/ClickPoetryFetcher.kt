@@ -110,7 +110,7 @@ class ClickPoetryFetcher(
                     completed = true
                     true
                 }
-                if (!completed) misses.add("「$variant」${budget}ms 内未完成")
+                if (!completed) misses.add("超时：「$variant」${budget}ms 内未完成")
                 if (hit != null) {
                     logger("检索线命中：「$variant」")
                     return SearchOutcome.success(hit!!.toDisplayLine())
