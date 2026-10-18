@@ -53,7 +53,7 @@ object SettingsKeys {
     const val ENABLE_CLICK_POETRY_SEARCH = "enable_click_poetry_search"
     /** 检索线启用那一刻的一次性告知是否已确认——**关键词会作为检索词发往第三方**。 */
     const val CLICK_POETRY_SEARCH_PRIVACY_ACKED = "click_poetry_search_privacy_acked"
-    /** 检索关键词预置表（逗号分隔；点击时不弹输入，承桌面 keywords[] 配置面形状）。 */
+    /** 检索关键词表（逗号分隔，**默认为空**、用户自填；点击时不弹输入，承桌面 keywords[] 配置面形状）。 */
     const val CLICK_POETRY_SEARCH_KEYWORDS = "click_poetry_search_keywords"
     /**
      * 检索线独立概率（0–100，开发者选项）。人工裁决 2026-10-18：两线各掷各的签——
@@ -122,8 +122,8 @@ object SettingsKeys {
         // 点击取诗 · 检索线（同样出厂关闭；告知未确认不允许外发关键词）
         const val ENABLE_CLICK_POETRY_SEARCH = false
         const val CLICK_POETRY_SEARCH_PRIVACY_ACKED = false
-        /** 预置关键词表：诗题与作者混排，用户可在设置里改。 */
-        const val CLICK_POETRY_SEARCH_KEYWORDS = "静夜思,观沧海,将进酒,水调歌头,李白,杜甫"
+        /** 默认不设关键词（人工裁决 2026-10-19「建议不设默认关键词」）——空表时这一路天然不参与，用户自填才生效。 */
+        const val CLICK_POETRY_SEARCH_KEYWORDS = ""
         /** 检索线概率默认 100：开关一旦生效，行为与无概率门控时完全一致（与随机线同口径）。 */
         const val CLICK_POETRY_SEARCH_PROBABILITY = 100
 

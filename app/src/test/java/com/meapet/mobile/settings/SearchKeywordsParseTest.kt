@@ -20,9 +20,10 @@ class SearchKeywordsParseTest {
     }
 
     @Test
-    fun `默认预置表可解析且非空`() {
-        val defaults = parseClickPoetryKeywords(SettingsKeys.Defaults.CLICK_POETRY_SEARCH_KEYWORDS)
-        assertEquals(6, defaults.size)
-        assertEquals("静夜思", defaults.first())
+    fun `默认不设关键词 解析为空表`() {
+        assertEquals(
+            emptyList<String>(),
+            parseClickPoetryKeywords(SettingsKeys.Defaults.CLICK_POETRY_SEARCH_KEYWORDS)
+        )
     }
 }
