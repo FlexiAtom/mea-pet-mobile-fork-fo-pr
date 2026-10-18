@@ -380,10 +380,12 @@ class FloatingLive2dService : Service() {
 
     /**
      * 单击取诗：仅当门控放行时执行。取文在 [ClickPoetryFetcher] 的两层超时预算内进行，
-     * 命中则以气泡展示并按悬浮窗语音开关朗读。
+     * 检索线命中后还要过 [ClickPoetrySummarizer] 的一次性总结（≤60 字，人工裁决
+     * 2026-10-18），命中则以气泡展示并按悬浮窗语音开关朗读。
      *
      * 失败档（人工裁决 2026-10-18）：随机线失败静默回退（取文侧留日志）；
-     * 检索线失败报错——悬浮窗没有分区语音可交还，报错落成气泡文本，与主界面同档不同形。
+     * 检索线失败（含命中后总结失败）报错——悬浮窗没有分区语音可交还，
+     * 报错落成气泡文本，与主界面同档不同形；不静默念检索原文。
      */
     private fun showTapPoetry() {
         val container = (applicationContext as? MeaPetApplication)?.container ?: return
@@ -394,13 +396,18 @@ class FloatingLive2dService : Service() {
         poetryJob = serviceScope.launch {
             if (line == com.meapet.mobile.content.ClickPoetryLine.SEARCH) {
                 val keywords = container.settingsManager.getClickPoetrySearchKeywords()
-                val outcome = container.clickPoetryFetcher.fetchSearch(keywords)
+                val search = container.clickPoetryFetcher.fetchSearch(keywords)
+                val outcome = if (search.ok) {
+                    container.clickPoetrySummarizer.summarize(checkNotNull(search.line))
+                } else {
+                    search
+                }
                 val text = outcome.line
                 if (text != null) {
                     bubbleWindow?.addBubble(text)
                     speakOverlay(text)
                 } else {
-                    bubbleWindow?.addBubble("关键词检索失败：${outcome.failureReason.orEmpty().take(60)}")
+                    bubbleWindow?.addBubble("检索线失败：${outcome.failureReason.orEmpty().take(60)}")
                 }
             } else {
                 val text = container.clickPoetryFetcher.fetch() ?: return@launch

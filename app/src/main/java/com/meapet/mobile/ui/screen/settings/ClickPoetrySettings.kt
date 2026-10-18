@@ -79,9 +79,9 @@ internal fun ClickPoetrySection(
     // ── 检索线（Wikisource）──
     SettingsSwitchRow(
         label = "检索线（按关键词检索词条）",
-        description = "开启后单击优先拿关键词检索 Wikisource 文献库，取命中词条的正文段落——" +
-            "关键词不限于诗题，任意你感兴趣的词都可以；命中校验不过时交还分区语音并报错，" +
-            "不静默换随机线",
+        description = "开启后单击从关键词表里随机抽一个词检索 Wikisource 文献库，命中后交给对话模型" +
+            "总结成不超过 60 字的一句进气泡——关键词不限于诗题，任意你感兴趣的词都可以；" +
+            "任一环失败时交还分区语音并报错，不静默换随机线、也不直接念检索原文",
         checked = state.clickPoetrySearchEnabled,
         darkTheme = darkTheme,
         onCheckedChange = { enabled ->
@@ -104,8 +104,8 @@ internal fun ClickPoetrySection(
             val parsed = parseClickPoetryKeywords(keywordsText)
             Text(
                 if (parsed.isEmpty()) "关键词为空时这一路不参与——点了不会有检索发生"
-                else "生效 ${parsed.size} 个：${parsed.take(4).joinToString("、")}" +
-                    if (parsed.size > 4) "…（一次点击最多轮转前 4 个）" else "",
+                else "生效 ${parsed.size} 个，每次点击随机抽一个：${parsed.take(4).joinToString("、")}" +
+                    if (parsed.size > 4) "…" else "",
                 style = MaterialTheme.typography.bodySmall
             )
         },
@@ -124,13 +124,14 @@ internal fun ClickPoetrySection(
             title = { Text("启用检索线") },
             text = {
                 Text(
-                    "开启后这一路会把关键词作为检索请求发到第三方文献库：\n" +
-                        "· 会离开这台机器的内容：「检索关键词」表里的那些词" +
-                        "（不含你的其他文字与屏幕内容）；\n" +
-                        "· 请求地址：${WikisourceClient.API_BASE}；\n" +
-                        "· 取回的文字经繁体→简体归一后直接进气泡与语音，不交给模型改写；\n" +
-                        "· 失败回退：连不上/超时/没有过命中校验的结果时，" +
-                        "这一发交还分区语音并给出报错提示，不会静默念别的。"
+                    "开启后这一路会做两件事：\n" +
+                        "· 每次点击从「检索关键词」表里随机抽一个词，作为检索请求发到第三方文献库" +
+                        "（不含你的其他文字与屏幕内容），请求地址：${WikisourceClient.API_BASE}；\n" +
+                        "· 命中的文字（已繁→简归一的一截词条正文）会发给你配置的 API 地址，" +
+                        "让对话模型总结成不超过 60 字的一句再进气泡与语音——这截文字是第三方内容，" +
+                        "只影响气泡与语音里说什么；\n" +
+                        "· 失败回退：连不上/超时/没有过命中校验/模型总结失败时，" +
+                        "这一发交还分区语音并给出报错提示，不会静默念检索原文或别的。"
                 )
             },
             confirmButton = {

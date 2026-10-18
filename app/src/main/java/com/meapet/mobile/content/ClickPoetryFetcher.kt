@@ -51,7 +51,8 @@ class ClickPoetryFetcher(
     private val e2eBudgetMillis: Long = 8_000,
     private val maxAttempts: Int = 2,
     private val clock: () -> Long = System::currentTimeMillis,
-    private val logger: (String) -> Unit = {}
+    private val logger: (String) -> Unit = {},
+    private val wordPicker: (List<String>) -> String = { it.random() }
 ) {
 
     private val client = HitokotoClient(engine)
@@ -77,44 +78,43 @@ class ClickPoetryFetcher(
     }
 
     /**
-     * 检索线：按关键词逐词、逐繁简变体轮转发检索，第一条**过了命中校验**的就返回。
+     * 检索线：**随机抽一个关键词**（人工裁决 2026-10-18，不整表轮转），只轮转它的
+     * 原样/繁體两个变体，第一条**过了命中校验**的就返回。
      *
-     * 预算形状承桌面 `fetch_wikisource_line`（sources.py:285-332）：逐词循环共用同一条
-     * 端到端 deadline，每一发取 `min(每档上限, 剩余)`，预算用完即断不再发。
-     * 与桌面 [maxAttempts] 重试不同，这里的"再试"就是词表轮转本身——检索线整体
-     * 最多外发 `关键词数 × 2（原样+繁體变体）` 发，封顶由端到端预算兜住。
+     * 预算形状仍是共享一条端到端 deadline、每发取 `min(每档上限, 剩余)`，
+     * 预算用完即断不再发。随机口径让每次点击的期待面摊到整张词表，
+     * 而不是前几个词永远吃掉预算、后面的词永远轮不上。
      *
-     * 失败理由取 misses 前 3 条拼接（桌面同口径），**必非空**；调用侧按人工裁决
+     * 失败理由取 misses 前 3 条拼接，**必非空**；调用侧按人工裁决
      * 把这一发交还分区语音并报错，不静默。
      */
     suspend fun fetchSearch(keywords: List<String>): SearchOutcome {
-        val words = keywords.map { it.trim() }.filter { it.isNotEmpty() }.take(MAX_SEARCH_WORDS)
+        val words = keywords.map { it.trim() }.filter { it.isNotEmpty() }
         if (words.isEmpty()) return SearchOutcome.failure("未配置关键词")
+        val word = wordPicker(words)
         val deadline = clock() + e2eBudgetMillis
         val misses = mutableListOf<String>()
-        for (word in words) {
-            for (variant in HitVerifier.queryVariants(word)) {
-                val remaining = deadline - clock()
-                if (remaining <= 0L) {
-                    // 预算理由放最前：misses 聚合截到 3 条，"没发出去是因为预算没了"不能被截掉
-                    val reason = (("端到端预算（${e2eBudgetMillis}ms）用完") +
-                        if (misses.isEmpty()) "" else " · 此前：" + misses.take(3).joinToString(" | "))
-                    logger("检索线取文失败：$reason")
-                    return SearchOutcome.failure(reason)
-                }
-                val budget = minOf(perAttemptTimeoutMillis, remaining)
-                var hit: SearchHit? = null
-                var completed = false
-                withTimeoutOrNull(budget) {
-                    hit = wikisourceClient.search(variant) { misses.add(it) }
-                    completed = true
-                    true
-                }
-                if (!completed) misses.add("超时：「$variant」${budget}ms 内未完成")
-                if (hit != null) {
-                    logger("检索线命中：「$variant」")
-                    return SearchOutcome.success(hit!!.toDisplayLine())
-                }
+        for (variant in HitVerifier.queryVariants(word)) {
+            val remaining = deadline - clock()
+            if (remaining <= 0L) {
+                // 预算理由放最前：misses 聚合截到 3 条，"没发出去是因为预算没了"不能被截掉
+                val reason = (("端到端预算（${e2eBudgetMillis}ms）用完") +
+                    if (misses.isEmpty()) "" else " · 此前：" + misses.take(3).joinToString(" | "))
+                logger("检索线取文失败：$reason")
+                return SearchOutcome.failure(reason)
+            }
+            val budget = minOf(perAttemptTimeoutMillis, remaining)
+            var hit: SearchHit? = null
+            var completed = false
+            withTimeoutOrNull(budget) {
+                hit = wikisourceClient.search(variant) { misses.add(it) }
+                completed = true
+                true
+            }
+            if (!completed) misses.add("超时：「$variant」${budget}ms 内未完成")
+            if (hit != null) {
+                logger("检索线命中：「$variant」")
+                return SearchOutcome.success(hit!!.toDisplayLine())
             }
         }
         val reason = if (misses.isEmpty()) "没有可用的检索结果" else misses.take(3).joinToString(" | ")
@@ -123,9 +123,6 @@ class ClickPoetryFetcher(
     }
 
     companion object {
-        /** 桌面 `words[:4]` 同口径：一次点击最多轮转四个关键词。 */
-        const val MAX_SEARCH_WORDS = 4
-
         /**
          * 概率门控（开发者选项"单击取诗概率"）：roll ∈ [0, 100)，命中条件 roll < 概率。
          * 0 = 从不，100 = 每次。纯函数便于单测，随机数由调用侧注入。

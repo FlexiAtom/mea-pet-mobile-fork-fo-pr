@@ -8,6 +8,7 @@ import com.meapet.mobile.client.KtorHttpClientEngine
 import com.meapet.mobile.client.OpenAiCompatibleClient
 import com.meapet.mobile.content.ClickPoetryFetcher
 import com.meapet.mobile.content.ClickPoetryLine
+import com.meapet.mobile.content.ClickPoetrySummarizer
 import com.meapet.mobile.chat.ChatMessage
 import com.meapet.mobile.chat.ChatRole
 import com.meapet.mobile.chat.ChatService
@@ -94,6 +95,19 @@ class AppContainer(
                 socketTimeoutMillis = CLICK_POETRY_REQUEST_TIMEOUT_MS
             ),
             logger = { Log.w("ClickPoetry", it) }
+        )
+    }
+
+    /**
+     * 检索线命中后的一次性 LLM 总结（人工裁决 2026-10-18：「像 PC 一样过下 LLM
+     * 总结成不超过 60 的一句」）。复用 [apiClient]（300s 长档引擎）——总结本就是
+     * 一次对话请求，与 3s 短档的取文 client 各走各的；超时由 Summarizer 自封。
+     */
+    val clickPoetrySummarizer: ClickPoetrySummarizer by lazy {
+        ClickPoetrySummarizer(
+            clientProvider = { apiClient },
+            modelProvider = { settingsManager.getModel() },
+            logger = { Log.w("ClickPoetrySummary", it) }
         )
     }
 
@@ -268,8 +282,9 @@ class AppContainer(
      * 诗句经 [Live2dManager.emitTapMessage] 走既有 tap 消息通路（聊天页系统气泡），
      * 并按主界面语音开关朗读。命中时本次轻触不再触发分区语音。
      *
-     * 检索线失败档统一（人工裁决 2026-10-18）：出网/超时/校验不过 → 交还分区语音
-     * （[Live2dDelegate.triggerZoneFeedback]）并气泡报错。线程口径见该方法注释。
+     * 失败档统一（人工裁决 2026-10-18）：检索线出网/超时/校验不过，或命中后
+     * **模型总结未成功**——都交还分区语音（[Live2dDelegate.triggerZoneFeedback]）
+     * 并气泡报错，不静默念检索原文。线程口径见该方法注释。
      * MainActivity.onCreate 调用；重复调用幂等（只是覆盖 hook）。
      */
     fun wireMainScreenClickPoetry() {
@@ -290,7 +305,13 @@ class AppContainer(
                 ClickPoetryLine.SEARCH -> {
                     val keywords = settingsManager.getClickPoetrySearchKeywords()
                     applicationScope.launch {
-                        val outcome = clickPoetryFetcher.fetchSearch(keywords)
+                        val search = clickPoetryFetcher.fetchSearch(keywords)
+                        // 命中≠结束：还要过一次性 LLM 总结成 ≤60 字那一句（人工裁决 2026-10-18）
+                        val outcome = if (search.ok) {
+                            clickPoetrySummarizer.summarize(checkNotNull(search.line))
+                        } else {
+                            search
+                        }
                         val line = outcome.line
                         if (line != null) {
                             com.meapet.mobile.live2d.Live2dManager.emitTapMessage(line)
@@ -302,7 +323,7 @@ class AppContainer(
                             com.meapet.mobile.live2d.Live2dDelegate.getInstance()
                                 .triggerZoneFeedback(x, y)
                             com.meapet.mobile.live2d.Live2dManager.emitTapMessage(
-                                "关键词检索失败：${outcome.failureReason?.take(ERROR_REASON_MAX_CHARS).orEmpty()}"
+                                "检索线失败：${outcome.failureReason?.take(ERROR_REASON_MAX_CHARS).orEmpty()}"
                             )
                         }
                     }
