@@ -73,7 +73,7 @@ class AppContainer(
         private const val TAG = "AppContainer"
 
         /** 点击取诗单发请求的连接/整体/socket 超时（毫秒），短档，独立于 LLM 的 300s。 */
-        private const val CLICK_POETRY_REQUEST_TIMEOUT_MS = 3_000L
+        private const val CLICK_POETRY_REQUEST_TIMEOUT_MS = 8_000L
 
         /** 检索线报错提示里失败理由的截断长度（理由全文进日志，气泡只给短的一截）。 */
         private const val ERROR_REASON_MAX_CHARS = 60

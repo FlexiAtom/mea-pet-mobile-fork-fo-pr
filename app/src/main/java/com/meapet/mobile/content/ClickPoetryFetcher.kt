@@ -47,7 +47,7 @@ data class SearchOutcome(val line: String?, val failureReason: String?) {
  */
 class ClickPoetryFetcher(
     engine: HttpClientEngine,
-    private val perAttemptTimeoutMillis: Long = 3_000,
+    private val perAttemptTimeoutMillis: Long = 8_000,
     private val e2eBudgetMillis: Long = 8_000,
     private val maxAttempts: Int = 2,
     private val clock: () -> Long = System::currentTimeMillis,
