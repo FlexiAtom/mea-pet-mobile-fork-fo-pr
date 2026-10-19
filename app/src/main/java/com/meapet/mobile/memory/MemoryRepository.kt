@@ -47,6 +47,12 @@ class MemoryRepository(
 
     private val file: File get() = File(dir, FILE_NAME)
 
+    /**
+     * 导出用：回源文件（不存在则 null）。原文透传口径同 ConversationStore.backupFile；
+     * 落盘同样走 tmp+rename，故不加锁读到的也是完整快照。
+     */
+    fun backupFile(): File? = file.takeIf { it.isFile }
+
     // ── CRUD ──────────────────────────────────────────
 
     /** 保存一条记忆（若 id 已存在则覆盖，不存在则新增）。 */

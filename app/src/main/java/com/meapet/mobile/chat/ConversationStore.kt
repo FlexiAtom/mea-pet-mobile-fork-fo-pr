@@ -46,6 +46,13 @@ class ConversationStore(
     private val mutex = Mutex()
     private val file: File get() = File(dir, FILE_NAME)
 
+    /**
+     * 导出用：回源文件（不存在则 null）。原文透传、不重新序列化——
+     * 本类的形态（List<ChatMessage>）一旦变化，旧包仍按当时字节导出的形状存在。
+     * 不加锁是安全的：[persist] 走 tmp+rename 原子替换，读到的永远是完整快照。
+     */
+    fun backupFile(): File? = file.takeIf { it.isFile }
+
     /** 待落盘快照流。replay=1 + DROP_OLDEST = 天然 conflate，只写最新。 */
     private val pending = MutableSharedFlow<List<ChatMessage>>(
         replay = 1,

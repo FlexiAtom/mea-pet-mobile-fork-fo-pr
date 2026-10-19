@@ -30,6 +30,21 @@ class WallpaperStore(private val context: Context) {
 
     private val dir: File get() = File(context.filesDir, "wallpaper").apply { mkdirs() }
 
+    /**
+     * 导出用：把设置里的壁纸路径解析成**本目录内**的现有文件，否则 null。
+     *
+     * 目录外一律不导——`wallpaper_path` 是设备本地路径且不入白名单，若指到别处
+     * （手工改过、或旧版本残留），把任意文件打进导出包不是本案要的行为。
+     * 这里不碰 [dir]（它的 getter 带 mkdirs 副作用，读侧不该建目录）。
+     */
+    fun backupFileFor(path: String?): File? {
+        if (path.isNullOrBlank()) return null
+        val target = runCatching { File(path).canonicalFile }.getOrNull() ?: return null
+        val root = runCatching { File(context.filesDir, "wallpaper").canonicalPath }.getOrNull()
+            ?: return null
+        return if (target.parentFile?.canonicalPath == root && target.isFile) target else null
+    }
+
     /** 导入后的最大边长（px），限制解码内存与 GL 上传量。 */
     private val maxDimension = 2048
 

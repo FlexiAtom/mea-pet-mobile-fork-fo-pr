@@ -47,11 +47,17 @@ object BackupExporter {
 
     fun defaultFileName(utcCompact: String): String = "${utcCompact}_MeaPet-Android.zip"
 
-    /** 包内路径红线：必须在 files/ 下、不含 `..`、不以绝对路径或目录分隔符开头。 */
+    /**
+     * 包内路径红线：必须在 files/ 下、非绝对、按**路径段**判越界。
+     * 段判而不是 `contains("..")`：后者会误杀 `wallpaper..2.jpg` 这类合法现名，
+     * 而真正的越界需要的是独立的 `.`/`..`/空段。
+     */
     private fun requireSafePath(path: String) {
-        require(path.startsWith("files/") && !path.contains("..") && !path.startsWith("/")) {
-            "包内路径越界: $path"
-        }
+        val segments = path.split('/')
+        require(
+            path.startsWith("files/") && !path.startsWith("/") &&
+                segments.none { it == ".." || it == "." || it.isBlank() }
+        ) { "包内路径越界: $path" }
         require(BackupCategory.fromPath(path) != null) { "未登记的包内路径: $path" }
     }
 

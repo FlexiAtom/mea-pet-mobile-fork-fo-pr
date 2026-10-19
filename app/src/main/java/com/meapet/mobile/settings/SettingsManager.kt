@@ -240,6 +240,9 @@ class SettingsManager(context: Context) {
     private fun currentPrefs(): Preferences =
         cachedPrefs ?: runBlocking { dataStore.data.first() }.also { cachedPrefs = it }
 
+    /** 导出采集用：当前全量快照。取舍（哪些键能进包）在 SettingsWhitelist 侧做，这里不筛。 */
+    fun exportSnapshot(): Preferences = currentPrefs()
+
     fun getApiKey(): String = currentPrefs()[KEY_API_KEY] ?: ""
     fun getApiUrl(): String = currentPrefs()[KEY_API_URL] ?: SettingsKeys.Defaults.API_URL
     fun getModel(): String = currentPrefs()[KEY_MODEL] ?: SettingsKeys.Defaults.MODEL
