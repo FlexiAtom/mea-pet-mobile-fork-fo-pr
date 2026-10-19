@@ -202,6 +202,9 @@ dependencies {
         compileOnly(libs.umeng.umsdk.asms)
     }
 
+    // zip4j：数据导出/导入整包 AES-256（父案 app-data-export 00:35 封形 A）
+    implementation(libs.zip4j)
+
     // 本地 VITS TTS：ONNX Runtime（原生 so 随 AAR 打包进 APK，仅 v8a/v7a；模型仍走运行时下载，见 TtsModelManager）
     implementation(libs.onnxruntime.android)
 

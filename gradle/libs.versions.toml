@@ -18,6 +18,7 @@ umengCommon = "9.9.2"
 umengAsms = "1.8.7.2"
 onnxruntime = "1.24.3"
 markwon = "4.6.2"
+zip4j = "2.11.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -60,6 +61,9 @@ umeng-umsdk-asms = { group = "com.umeng.umsdk", name = "asms", version.ref = "um
 
 # ONNX Runtime（本地 VITS TTS 推理）
 onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
+
+# zip4j（数据导出 AES-256 整包加解密，探针已证 AGP 构建+机内往返）
+zip4j = { group = "net.lingala.zip4j", name = "zip4j", version.ref = "zip4j" }
 
 # Markwon（AI 回复 Markdown 渲染：公式/表格/删除线/链接；代码块样式由 core 提供）
 markwon-core = { group = "io.noties.markwon", name = "core", version.ref = "markwon" }
