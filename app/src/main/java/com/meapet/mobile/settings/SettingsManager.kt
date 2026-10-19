@@ -86,6 +86,7 @@ class SettingsManager(context: Context) {
     private val KEY_CLICK_POETRY_PROBABILITY = intPreferencesKey(SettingsKeys.CLICK_POETRY_PROBABILITY)
     private val KEY_WALLPAPER_PATH = stringPreferencesKey(SettingsKeys.WALLPAPER_PATH)
     private val KEY_WALLPAPER_BLUR = doublePreferencesKey(SettingsKeys.WALLPAPER_BLUR)
+    private val KEY_BACKUP_NOTICE_ACKED = booleanPreferencesKey(SettingsKeys.BACKUP_NOTICE_ACKED)
     private val KEY_PRIVACY_VERSION_SHOWN = stringPreferencesKey(SettingsKeys.PRIVACY_VERSION_SHOWN)
 
     // ── Flows (响应式订阅) ────────────────────────────
@@ -336,6 +337,10 @@ class SettingsManager(context: Context) {
     /** 主界面背景壁纸模糊强度（0~1，0 = 不模糊）。 */
     fun getWallpaperBlur(): Double = currentPrefs()[KEY_WALLPAPER_BLUR] ?: SettingsKeys.Defaults.WALLPAPER_BLUR
 
+    /** 「导出包里有什么」的告知是否已确认过（默认未确认，首次导出前必弹一次）。 */
+    fun isBackupNoticeAcked(): Boolean =
+        currentPrefs()[KEY_BACKUP_NOTICE_ACKED] ?: SettingsKeys.Defaults.BACKUP_NOTICE_ACKED
+
     /** 已看过/已处理的隐私政策版本号（默认空串 = 未处理）。 */
     fun getPrivacyVersionShown(): String =
         currentPrefs()[KEY_PRIVACY_VERSION_SHOWN] ?: SettingsKeys.Defaults.PRIVACY_VERSION_SHOWN
@@ -477,6 +482,11 @@ class SettingsManager(context: Context) {
 
     suspend fun setWallpaperBlur(blur: Double) {
         cachedPrefs = dataStore.edit { prefs -> prefs[KEY_WALLPAPER_BLUR] = blur }
+    }
+
+    /** 记录导出告知已确认（只写 true，幂等）。 */
+    suspend fun setBackupNoticeAcked() {
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_BACKUP_NOTICE_ACKED] = true }
     }
 
     /** 清除所有设置（恢复出厂）。 */

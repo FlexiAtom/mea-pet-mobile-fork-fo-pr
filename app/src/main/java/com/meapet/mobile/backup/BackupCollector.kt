@@ -63,4 +63,17 @@ object BackupCollector {
 
     /** 读侧统一口径：不可读（不存在/不是文件/零字节损坏）就当这一类没有内容。 */
     private fun File.backupOrNull(): File? = takeIf { it.isFile && it.length() > 0L }
+
+    /**
+     * 哪些类别**现在**有东西可导：只按存在性判，不读正文、不加密——
+     * 给设置页那四行勾选做"本机这一类还没有东西"的提示用，判据与 [collect] 一致。
+     */
+    fun availableCategories(sources: BackupSources): Set<BackupCategory> {
+        val available = mutableSetOf<BackupCategory>()
+        if (sources.settingsPrefs != null) available += BackupCategory.SETTINGS
+        if (sources.chatFile?.backupOrNull() != null) available += BackupCategory.CHAT
+        if (sources.memoryFile?.backupOrNull() != null) available += BackupCategory.MEMORY
+        if (sources.wallpaperFile?.backupOrNull() != null) available += BackupCategory.WALLPAPER
+        return available
+    }
 }

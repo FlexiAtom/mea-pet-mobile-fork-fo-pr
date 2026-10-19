@@ -15,6 +15,7 @@ import com.meapet.mobile.backup.BackupInspector
 import com.meapet.mobile.backup.BackupService
 import com.meapet.mobile.backup.BackupSources
 import com.meapet.mobile.backup.ManifestRejectException
+import com.meapet.mobile.settings.SettingsKeys
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,10 @@ data class BackupUiState(
     val stagedRows: List<StagedEntryRow> = emptyList(),
     /** 结果回执：成功与失败同一格，失败带原因但不承诺"数据一定找回"。 */
     val notice: String? = null,
+    /** 「导出包里有什么」的告知是否已确认过（首次导出前先看到一次，之后不再拦路）。 */
+    val backupNoticeAcked: Boolean = SettingsKeys.Defaults.BACKUP_NOTICE_ACKED,
+    /** 本机现在有东西的类别（判据与采集层一致），UI 用它给勾选行加提示。 */
+    val available: Set<BackupCategory> = emptySet(),
 )
 
 /**
@@ -60,6 +65,44 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
     init {
         // 进页清扫：上次崩溃/被杀留下的暂存料
         service.sweepStaleStaging()
+        _state.update { it.copy(backupNoticeAcked = container.settingsManager.isBackupNoticeAcked()) }
+        refreshAvailability()
+    }
+
+    /**
+     * 刷新一遍"本机哪些类别有东西"。
+     *
+     * 设置类永远在（DataStore 总有一个快照），其余三类看文件存不存在，所以磁盘变化只影响
+     * 后三类——但这里按四路整体重算，不给"哪路变了"这种事实编造增量逻辑。磁盘动作在
+     * IO 线程上跑，不占主线程（`exportSnapshot()` 内部是 runBlocking 读）。
+     */
+    fun refreshAvailability() {
+        viewModelScope.launch {
+            val available = withContext(Dispatchers.IO) {
+                BackupCollector.availableCategories(currentSources())
+            }
+            _state.update { it.copy(available = available) }
+        }
+    }
+
+    /** 采集四路源（导出口径与可用性提示共用这一份，避免两处真值漂移）。 */
+    private fun currentSources(): BackupSources {
+        val settings = container.settingsManager
+        return BackupSources(
+            settingsPrefs = settings.exportSnapshot(),
+            chatFile = container.conversationStore.backupFile(),
+            memoryFile = container.memoryRepository.backupFile(),
+            wallpaperFile = container.wallpaperStore.backupFileFor(settings.getWallpaperPath()),
+        )
+    }
+
+    /** UI 侧的前置校验（口令空/两次不一致）也走同一格回执，避免两套提示口径。 */
+    fun report(message: String) = _state.update { it.copy(notice = message) }
+
+    /** 记录「导出包里有什么」的告知已看过（只写 true，幂等）。 */
+    fun acknowledgeBackupNotice() {
+        _state.update { it.copy(backupNoticeAcked = true) }
+        viewModelScope.launch { container.settingsManager.setBackupNoticeAcked() }
     }
 
     fun toggleExport(category: BackupCategory, on: Boolean) =
@@ -168,6 +211,8 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
                             "包内导出时间为 ${summary.createdAt}。",
                     )
                 }
+                // 回灌改的是磁盘，可导类别集照着重算一遍（refreshAvailability 自带异步）
+                refreshAvailability()
             }.onFailure { t ->
                 // 失败时保留暂存与解析结果：回滚已经做完，改对口令可以直接重试
                 _state.update {
@@ -192,14 +237,7 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
-                    val settings = container.settingsManager
-                    val sources = BackupSources(
-                        settingsPrefs = settings.exportSnapshot(),
-                        chatFile = container.conversationStore.backupFile(),
-                        memoryFile = container.memoryRepository.backupFile(),
-                        wallpaperFile = container.wallpaperStore.backupFileFor(settings.getWallpaperPath()),
-                    )
-                    val items = BackupCollector.collect(selected, sources)
+                    val items = BackupCollector.collect(selected, currentSources())
                     if (items.isEmpty()) error("选中的类别在这台机器上都没有内容")
                     val pwd = password.toCharArray()
                     val bytes = service.openWriteSink(target).use { sink ->

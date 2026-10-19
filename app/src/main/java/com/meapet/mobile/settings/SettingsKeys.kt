@@ -84,6 +84,13 @@ object SettingsKeys {
     /** 主界面背景壁纸模糊强度：0.0~1.0，0 = 不模糊。 */
     const val WALLPAPER_BLUR = "wallpaper_blur"
 
+    // ── 数据与备份 ──────────────────────────────────
+    /**
+     * 「导出包里有什么、口令意味着什么」这份告知是否已确认过。
+     * 只写 true、幂等——告知只在首次导出时弹一次（与点击取诗的告知同形）。
+     */
+    const val BACKUP_NOTICE_ACKED = "backup_notice_acked"
+
     // ── TTS 语音 ─────────────────────────────────────
     const val TTS_MAIN_ENABLED = "tts_main_enabled"        // 主界面语音开关
     const val TTS_OVERLAY_ENABLED = "tts_overlay_enabled"  // 悬浮窗语音开关
@@ -139,5 +146,8 @@ object SettingsKeys {
         // 背景壁纸
         const val WALLPAPER_PATH = ""
         const val WALLPAPER_BLUR = 0.0
+
+        // 数据与备份（告知出厂未确认，首次导出前必须看到一次）
+        const val BACKUP_NOTICE_ACKED = false
     }
 }

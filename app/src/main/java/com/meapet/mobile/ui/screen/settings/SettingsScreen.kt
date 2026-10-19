@@ -49,6 +49,7 @@ import com.meapet.mobile.R
 import com.meapet.mobile.ui.component.PrivacyPolicyContent
 import com.meapet.mobile.ui.theme.findPreset
 import com.meapet.mobile.ui.theme.isDarkTheme
+import com.meapet.mobile.viewmodel.BackupViewModel
 import com.meapet.mobile.viewmodel.SettingsUiState
 import com.meapet.mobile.viewmodel.SettingsViewModel
 
@@ -64,6 +65,7 @@ private enum class SettingsPage(val title: String) {
     CHAT("对话"),
     APPEARANCE("外观"),
     VOICE("语音"),
+    DATA("数据与备份"),
     ABOUT("关于"),
     POLICY("隐私政策"),
     DEVELOPER("开发者选项"),
@@ -78,6 +80,9 @@ private enum class SettingsPage(val title: String) {
  *
  * 各子页的 Section 在同包的 `*Settings.kt`，公共件在 `SettingsCommon.kt`。
  *
+ * 「数据与备份」自带一个 [BackupViewModel]：它只读 container 上的存储对象，
+ * 不掺进 SettingsViewModel 的状态流——两边同时改一条设置项会互相覆盖读到的值。
+ *
  * @param onBack 从根页返回（退出设置）
  * @param onExitApp 取消数据采集授权后终止进程
  */
@@ -86,7 +91,8 @@ private enum class SettingsPage(val title: String) {
 fun SettingsScreen(
     onBack: () -> Unit,
     onExitApp: () -> Unit = {},
-    settingsViewModel: SettingsViewModel = viewModel()
+    settingsViewModel: SettingsViewModel = viewModel(),
+    backupViewModel: BackupViewModel = viewModel()
 ) {
     val state by settingsViewModel.state.collectAsState()
 
@@ -197,6 +203,10 @@ fun SettingsScreen(
                         SettingsCard { ClickPoetrySearchSection(state, settingsViewModel, darkTheme) }
                     }
 
+                    SettingsPage.DATA -> {
+                        SettingsCard { DataSection(backupViewModel) }
+                    }
+
                     SettingsPage.ABOUT -> {
                         SettingsCard { AppInfoSection(settingsViewModel) }
                         SettingsCard { UpdateSection(state, settingsViewModel, darkTheme) }
@@ -225,7 +235,7 @@ fun SettingsScreen(
     }
 }
 
-/** 入口列表：五个功能域，每项显示当前状态摘要。 */
+/** 入口列表：六个功能域，每项显示当前状态摘要。 */
 @Composable
 private fun RootPage(
     state: SettingsUiState,
@@ -259,6 +269,13 @@ private fun RootPage(
                 iconRes = R.drawable.ic_settings_voice,
                 summary = if (state.ttsMainEnabled || state.ttsOverlayEnabled) "发声已开启"
                           else "发声已关闭"
+            )
+        )
+        add(
+            SettingsEntry(
+                page = SettingsPage.DATA,
+                iconRes = R.drawable.ic_settings_data,
+                summary = "加密导出与导入：设置、对话、记忆、壁纸"
             )
         )
         add(
