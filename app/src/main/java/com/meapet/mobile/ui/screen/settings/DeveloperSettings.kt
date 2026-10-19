@@ -34,7 +34,7 @@ internal fun DeveloperSection(
     state: SettingsUiState,
     viewModel: SettingsViewModel
 ) {
-    SectionTitle("点击取诗概率")
+    SectionTitle("点击概率")
 
     Text(
         "开关开启后，每次单击仍按此概率（0–100）决定是否实际取诗；0 = 从不，100 = 每次。",
