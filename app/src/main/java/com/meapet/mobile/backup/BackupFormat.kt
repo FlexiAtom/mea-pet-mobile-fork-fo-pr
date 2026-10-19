@@ -15,6 +15,8 @@ data class ManifestEntry(
     val name: String,
     val schema: Int,
     val bytes: Long,
+    /** 条目在包内的实际路径；壁纸=磁盘现名入包（人工裁决 2026-10-20 02:5x「带原文件名」→「磁盘现名」），其余类固定。 */
+    val path: String,
 )
 
 @Serializable
@@ -26,7 +28,7 @@ data class BackupManifest(
 
 class ManifestRejectException(message: String) : IllegalArgumentException(message)
 
-object BackupManifestCodec {
+object BackupFormat {
 
     const val SUPPORTED_FORMAT = 1
 
@@ -74,5 +76,9 @@ enum class BackupCategory(val entryName: String) {
     companion object {
         fun fromEntryName(name: String): BackupCategory? =
             values().firstOrNull { it.entryName == name }
+
+        /** 包内路径 → 类别（壁纸路径带磁盘现名，按前缀归）。 */
+        fun fromPath(path: String): BackupCategory? =
+            values().firstOrNull { path == "files/${it.entryName}" || path.startsWith("files/${it.entryName}/") }
     }
 }
