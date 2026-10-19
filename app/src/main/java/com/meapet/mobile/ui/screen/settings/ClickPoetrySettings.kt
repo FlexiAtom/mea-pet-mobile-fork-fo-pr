@@ -25,12 +25,14 @@ import com.meapet.mobile.viewmodel.SettingsUiState
 import com.meapet.mobile.viewmodel.SettingsViewModel
 
 /**
- * 点击取诗（甲档：单源 hitokoto）：开关 + 启用那一刻的一次性告知弹窗。
+ * 古诗词小节（甲档：单源 hitokoto）：开关 + 启用那一刻的一次性告知弹窗。
  *
  * 弹窗形态按人工裁决（2026-10-19 08:03，原话见台账）：保留、**无任何强制**、仅出现一次、
  * 点击任意位置即可关闭——拨开关当场生效，弹窗纯告知不拦路；告知只在首次启用时弹一次
  * （按点击弹会变噪声，等于没有告知）。端点地址直接取 [HitokotoClient.URL] 等常量，
  * UI 层不抄第二份字符串（防两处真值漂移）。
+ *
+ * 与检索线分节按人工指令（2026-10-19 22:26「需要单独」）：古诗词、任意关键词各自独立小节。
  */
 @Composable
 internal fun ClickPoetrySection(
@@ -39,9 +41,8 @@ internal fun ClickPoetrySection(
     darkTheme: Boolean
 ) {
     var showPrivacyDialog by remember { mutableStateOf(false) }
-    var showSearchPrivacyDialog by remember { mutableStateOf(false) }
 
-    SectionTitle("点击取诗")
+    SectionTitle("古诗词")
 
     SettingsSwitchRow(
         label = "单击悬浮桌宠取一句诗",
@@ -68,8 +69,19 @@ internal fun ClickPoetrySection(
                 "· 失败回退：超时或取不到时不显示诗句，只在本地日志留一行记录。"
         ) { showPrivacyDialog = false }
     }
+}
 
-    // ── 检索线（Tavily 网页检索）──
+/** 任意关键词小节（乙档：Tavily 检索线）：开关 + 关键词表 + 首次启用告知弹窗。 */
+@Composable
+internal fun ClickPoetrySearchSection(
+    state: SettingsUiState,
+    viewModel: SettingsViewModel,
+    darkTheme: Boolean
+) {
+    var showSearchPrivacyDialog by remember { mutableStateOf(false) }
+
+    SectionTitle("任意关键词")
+
     SettingsSwitchRow(
         label = "检索线（按关键词检索网页）",
         description = "开启后单击从关键词表里随机抽一个词做 Tavily 网页检索，取回的资料片段交给对话模型" +
