@@ -2,6 +2,7 @@ package com.meapet.mobile.settings
 
 import android.content.Context
 import android.util.Log
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
@@ -242,6 +243,18 @@ class SettingsManager(context: Context) {
 
     /** 导出采集用：当前全量快照。取舍（哪些键能进包）在 SettingsWhitelist 侧做，这里不筛。 */
     fun exportSnapshot(): Preferences = currentPrefs()
+
+    /**
+     * 导入回灌用：在一个 DataStore 编辑事务里跑 [block]，返回**事务前**的全量快照。
+     *
+     * 把快照与写入放在同一次调用里，回滚才能拿到"被这次导入打扰之前"的真值
+     * （包括"这个键原本根本不存在"这种状态）。同步快照照常刷新，UI 下帧即生效。
+     */
+    suspend fun editForImport(block: (MutablePreferences) -> Unit): Preferences {
+        val before = currentPrefs()
+        cachedPrefs = dataStore.edit { prefs -> block(prefs) }
+        return before
+    }
 
     fun getApiKey(): String = currentPrefs()[KEY_API_KEY] ?: ""
     fun getApiUrl(): String = currentPrefs()[KEY_API_URL] ?: SettingsKeys.Defaults.API_URL

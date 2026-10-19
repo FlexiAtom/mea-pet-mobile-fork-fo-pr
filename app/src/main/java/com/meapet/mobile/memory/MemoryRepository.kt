@@ -53,6 +53,39 @@ class MemoryRepository(
      */
     fun backupFile(): File? = file.takeIf { it.isFile }
 
+    /**
+     * 导入用：整体替换内存与磁盘，成功返回**被替换掉的原内容**（调用方拿它回滚）。
+     *
+     * 返回 null = 包内文本解不动，此时什么都没动——校验必须在换内存之前，
+     * 否则一个坏包会把正在用的记忆表打成空。`ensureLoadedLocked()` 先跑一次，
+     * 否则"内存里还没加载"会被当成原内容交出去，回滚反而造成丢失。
+     * 落盘仍走既有 persistLocked（tmp+rename），失败只记日志——与本类其余写入口径一致。
+     */
+    suspend fun replaceWith(text: String): List<MemoryItem>? = mutex.withLock {
+        val items = try {
+            MemorySerialization.decode(text)
+        } catch (e: Exception) {
+            Log.w(TAG, "Import payload not parseable as memories: ${e.javaClass.simpleName}")
+            return@withLock null
+        }
+        ensureLoadedLocked()
+        val previous = memories.toList()
+        memories.clear()
+        memories.addAll(items)
+        enforceCapacity()
+        persistLocked()
+        previous
+    }
+
+    /** 回滚用：把 [replaceWith] 交还原样装回（内存与磁盘一起）。 */
+    suspend fun restoreAll(items: List<MemoryItem>) {
+        mutex.withLock {
+            memories.clear()
+            memories.addAll(items)
+            persistLocked()
+        }
+    }
+
     // ── CRUD ──────────────────────────────────────────
 
     /** 保存一条记忆（若 id 已存在则覆盖，不存在则新增）。 */

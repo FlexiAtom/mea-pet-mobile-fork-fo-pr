@@ -106,6 +106,24 @@ class WallpaperStore(private val context: Context) {
         dir.listFiles()?.forEach { it.delete() }
     }
 
+    /**
+     * 导入用：把**已在本地**的文件搬进壁纸目录并保留给定文件名，返回绝对路径。
+     *
+     * 不走 [importFromContentUri] 的重编码管道：包里那张是本应用自己产出的 JPEG，
+     * 再解码压缩一遍只会让两次往返各掉一次质量；导入要的是字节等值。
+     * 保留现名是人工裁决 2026-10-20（多条壁纸条目按 `<name>` 各自的磁盘名入/出包）。
+     * "目录恒一张"在这里继续成立：新文件站稳后才删其余（含被换下来的旧那张）。
+     */
+    suspend fun installLocally(source: File, diskName: String): String? = withContext(Dispatchers.IO) {
+        // 只取最后一段兜底防越界；字符集安全化由调用侧（BackupCollector.sanitizeWallpaperName）做
+        val leaf = diskName.substringAfterLast('/').substringAfterLast('\\')
+        val out = File(dir, leaf)
+        if (out.absolutePath == source.absolutePath) return@withContext out.absolutePath
+        runCatching { source.copyTo(out, overwrite = true) }.getOrNull() ?: return@withContext null
+        dir.listFiles()?.filter { it.absolutePath != out.absolutePath && it.isFile }?.forEach { it.delete() }
+        out.absolutePath
+    }
+
     private fun rotate(src: Bitmap, orientation: Int): Bitmap {
         val degrees = when (orientation) {
             ExifInterface.ORIENTATION_ROTATE_90 -> 90f

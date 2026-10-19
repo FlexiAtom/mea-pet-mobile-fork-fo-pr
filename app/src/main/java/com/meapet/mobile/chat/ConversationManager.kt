@@ -80,6 +80,23 @@ class ConversationManager(
     fun getMessages(): List<ChatMessage> = synchronized(lock) { messages.toList() }
 
     /**
+     * 导入用：**整体替换**当前窗口并回写。
+     *
+     * 与 [restore] 的区别是语义要求——导入是"以包内内容为准覆盖"，
+     * restore 的前插去重会把旧消息留在窗口里，那不是导入。
+     * 空列表是合法输入（清空会话）；替换后照常裁剪窗口，与日常追加同一口径。
+     */
+    fun replaceAll(newMessages: List<ChatMessage>) {
+        synchronized(lock) {
+            messages.clear()
+            messages.addAll(newMessages)
+            trimWindow()
+            persistLocked()
+        }
+        Log.i(TAG, "Replaced conversation with ${newMessages.size} messages (total: $size)")
+    }
+
+    /**
      * 获取用于 API 请求的消息列表（含 system prompt）。
      *
      * 消息按「是否每轮都变」分层，尽量让前缀在轮与轮之间保持一致，

@@ -1,5 +1,6 @@
 package com.meapet.mobile.backup
 
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
@@ -102,5 +103,23 @@ object SettingsWhitelist {
             out[key] = value
         }
         return out.toPreferences()
+    }
+
+    /**
+     * 写回用：把一对 键→值 落到 MutablePreferences；value 为 null 表示"这个键本来不存在"，
+     * 回滚时就该把它删掉（不是写个空值进去）。
+     *
+     * `MutablePreferences.set` 是 `<T> set(Key<T>, T)`，通配符键调不动，只能按封版清单
+     * 的类型做一次 unchecked cast——类型不符的值在 decodeTo 里已经被 `primitive.int`
+     * 一类的读取器挡掉了，这里不再重复校验。
+     */
+    @Suppress("UNCHECKED_CAST")
+    fun writeOne(target: MutablePreferences, key: Preferences.Key<*>, value: Any?) {
+        if (value == null) target -= key else target[key as Preferences.Key<Any>] = value
+    }
+
+    /** 写回用：整份补丁逐键落。 */
+    fun writeInto(target: MutablePreferences, source: Preferences) {
+        source.asMap().forEach { (key, value) -> writeOne(target, key, value) }
     }
 }

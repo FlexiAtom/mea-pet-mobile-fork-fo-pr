@@ -53,6 +53,19 @@ class ConversationStore(
      */
     fun backupFile(): File? = file.takeIf { it.isFile }
 
+    /**
+     * 导入用：按**本类自己的**解析口径判定包内文本是不是合法会话快照。
+     * 返回 null = 解不动，调用方必须拒绝这一类，不能让它进到回灌那一步。
+     * 回灌走 ConversationManager.replaceAll → 常规落盘（重新序列化），不直接写原始字节：
+     * 内存与磁盘由同一条路径决定，才不会一边新一边旧。
+     */
+    fun parseSnapshot(text: String): List<ChatMessage>? = try {
+        json.decodeFromString<List<ChatMessage>>(text)
+    } catch (e: Exception) {
+        Log.w(TAG, "Import payload not parseable as conversation: ${e.javaClass.simpleName}")
+        null
+    }
+
     /** 待落盘快照流。replay=1 + DROP_OLDEST = 天然 conflate，只写最新。 */
     private val pending = MutableSharedFlow<List<ChatMessage>>(
         replay = 1,
