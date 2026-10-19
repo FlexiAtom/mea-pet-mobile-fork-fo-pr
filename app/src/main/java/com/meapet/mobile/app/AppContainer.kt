@@ -9,6 +9,8 @@ import com.meapet.mobile.client.OpenAiCompatibleClient
 import com.meapet.mobile.content.ClickPoetryFetcher
 import com.meapet.mobile.content.ClickPoetryLine
 import com.meapet.mobile.content.ClickPoetrySummarizer
+import com.meapet.mobile.backup.AppBackupApplier
+import com.meapet.mobile.backup.BackupService
 import com.meapet.mobile.chat.ChatMessage
 import com.meapet.mobile.chat.ChatRole
 import com.meapet.mobile.chat.ChatService
@@ -30,6 +32,7 @@ import com.meapet.mobile.tts.g2p.ChineseG2p
 import com.meapet.mobile.tts.g2p.G2pProcessor
 import com.meapet.mobile.tts.model.TtsModelManager
 import com.meapet.mobile.update.UpdateChecker
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -182,6 +185,27 @@ class AppContainer(
     val wallpaperStore: WallpaperStore by lazy {
         WallpaperStore(context)
     }
+
+    /** 数据导出/导入的 SAF 暂存层（口令不过这里）。 */
+    val backupService: BackupService by lazy {
+        BackupService(context)
+    }
+
+    /**
+     * 造一个把导入条目落到真实存储的执行体。
+     *
+     * 不是 lazy 单例：暂存格由调用方（BackupService）按次给出，装的是那一次导入的
+     * 旧图副本。设置类落地后热刷一次 [reloadClient]——否则换完包还拿着旧 Base URL。
+     */
+    fun newBackupApplier(stashDir: File): AppBackupApplier = AppBackupApplier(
+        settings = settingsManager,
+        conversationStore = conversationStore,
+        conversationManager = conversationManager,
+        memory = memoryRepository,
+        wallpaper = wallpaperStore,
+        stashDir = stashDir,
+        onSettingsChanged = { reloadClient() }
+    )
 
     /** 生命周期管理器。 */
     val lifecycleManager: LifecycleManager by lazy {
