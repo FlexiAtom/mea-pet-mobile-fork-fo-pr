@@ -1,6 +1,9 @@
 package com.meapet.mobile.memory
 
 import android.util.Log
+import com.meapet.mobile.security.AtRestCrypto
+import com.meapet.mobile.security.CipherFileFormat
+import com.meapet.mobile.security.KeyUnavailableException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
@@ -26,10 +29,12 @@ import kotlin.math.max
  *
  * @param dir 存储目录（应用 filesDir；JVM 测试传临时目录）
  * @param maxItems SHORT_TERM/LONG_TERM 合计最大条目数，超限自动淘汰（不含永久保留的事实/特质）
+ * @param crypto 常驻加密接缝（null=明文时代的全部行为；双支路口径同 ConversationStore）
  */
 class MemoryRepository(
     private val dir: File,
-    private val maxItems: Int = 500
+    private val maxItems: Int = 500,
+    private val crypto: AtRestCrypto? = null,
 ) {
     private val mutex = Mutex()
     private val memories = mutableListOf<MemoryItem>()
@@ -302,8 +307,19 @@ class MemoryRepository(
             Log.d(TAG, "No persisted memories found")
             return
         }
+        val text = try {
+            decodeTextLocked(file)
+        } catch (e: KeyUnavailableException) {
+            // 密钥档：改名 .corrupt 等于把唯一剩余数据判死——只报错，不毁文件
+            Log.e(TAG, "Memories file is encrypted but key is unavailable; kept untouched", e)
+            return
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read memories from disk, backing up corrupted file", e)
+            backupCorruptedFileLocked()
+            return
+        }
         try {
-            val items = MemorySerialization.decode(file.readText())
+            val items = MemorySerialization.decode(text)
             val existingIds = memories.map { it.id }.toSet()
             val restored = items.filter { it.id !in existingIds }
             memories.addAll(0, restored)
@@ -315,11 +331,31 @@ class MemoryRepository(
         }
     }
 
+    /** 读侧解码：明文直读；密文走文件格（**密钥丢失抛 [KeyUnavailableException]**）。 */
+    private fun decodeTextLocked(target: File): String {
+        val encrypted = CipherFileFormat.isEncryptedFile(target)
+        val crypto = this.crypto
+        if (encrypted && crypto == null) {
+            throw KeyUnavailableException("记忆文件是密文，但本机未接常驻解密")
+        }
+        if (encrypted) return requireNotNull(crypto).readPlain(target).decodeToString()
+        return target.readText()
+    }
+
     /** 持久化当前列表。必须在持有 [mutex] 时调用，保证写入内容与内存状态一致。 */
     private fun persistLocked() {
         try {
             val json = MemorySerialization.encode(memories.toList())
             dir.mkdirs()
+            val crypto = this.crypto
+            if (crypto != null && crypto.enabled) {
+                // 密文写自带原子替换；tmp 名分态，与明文路互不踩
+                val reason = crypto.tryWrite(file, "$FILE_NAME.enc.tmp", json.encodeToByteArray())
+                if (reason != null) {
+                    Log.e(TAG, "Failed to persist encrypted memories: $reason")
+                }
+                return
+            }
             // 先写临时文件再 rename，避免写入中途崩溃导致文件截断
             val tmp = File(dir, "$FILE_NAME.tmp")
             tmp.writeText(json)

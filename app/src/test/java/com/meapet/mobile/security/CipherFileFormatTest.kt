@@ -1,9 +1,6 @@
 package com.meapet.mobile.security
 
 import java.io.File
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.spec.GCMParameterSpec
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -18,26 +15,9 @@ import org.junit.Test
  */
 class CipherFileFormatTest {
 
-    private class FakeProvider : DataKeyProvider {
-        private val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
-        var exists = true
-
-        override fun keyExists(): Boolean = exists
-
-        override fun encryptCipher(): Cipher =
-            Cipher.getInstance(AesGcmEngine.TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key) }
-
-        override fun decryptCipher(iv: ByteArray): Cipher {
-            check(exists) { "密钥不在场" }
-            return Cipher.getInstance(AesGcmEngine.TRANSFORMATION).apply {
-                init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(AesGcmEngine.TAG_BITS, iv))
-            }
-        }
-    }
-
     @Test
     fun roundtrip_emptyPlain_singleChunk() {
-        val provider = FakeProvider()
+        val provider = FakeDataKeyProvider()
         val encoded = CipherFileFormat.encode(ByteArray(0), provider)
         assertTrue(CipherFileFormat.isEncrypted(encoded))
         assertEquals(0, CipherFileFormat.decode(encoded, provider).size)
@@ -45,7 +25,7 @@ class CipherFileFormatTest {
 
     @Test
     fun roundtrip_multiChunk_largerThan64KiB() {
-        val provider = FakeProvider()
+        val provider = FakeDataKeyProvider()
         val plain = "记".repeat(64 * 1024).encodeToByteArray() // 跨多个分块的 UTF-8 长文
         val encoded = CipherFileFormat.encode(plain, provider)
         assertTrue(CipherFileFormat.isEncrypted(encoded))
@@ -54,7 +34,7 @@ class CipherFileFormatTest {
 
     @Test
     fun sniff_plainTruncatedMagic_andFullMagic_distinguishable() {
-        val provider = FakeProvider()
+        val provider = FakeDataKeyProvider()
         assertFalse(CipherFileFormat.isEncrypted("[]".encodeToByteArray()))
         // 只差一个字节的 MAGIC 前缀不能被当成密文头
         assertFalse(CipherFileFormat.isEncrypted((CipherFileFormat.MAGIC.dropLast(1)).encodeToByteArray()))
@@ -65,7 +45,7 @@ class CipherFileFormatTest {
 
     @Test
     fun sniffFile_realFiles_encryptedPlainGhost() {
-        val provider = FakeProvider()
+        val provider = FakeDataKeyProvider()
         val dir = File(System.getProperty("java.io.tmpdir"), "cfft_${System.nanoTime()}").apply { mkdirs() }
         try {
             val plain = File(dir, "plain.json").apply { writeText("[{\"a\":1}]") }
@@ -84,7 +64,7 @@ class CipherFileFormatTest {
 
     @Test
     fun wrongKey_reportsKeyUnavailable_notCorruptCiphertext() {
-        val provider = FakeProvider()
+        val provider = FakeDataKeyProvider()
         val encoded = CipherFileFormat.encode("secret".encodeToByteArray(), provider)
         val dir = File(System.getProperty("java.io.tmpdir"), "cfft2_${System.nanoTime()}").apply { mkdirs() }
         try {
@@ -109,7 +89,7 @@ class CipherFileFormatTest {
 
     @Test
     fun truncatedOrBadLengthField_reportsCorruptCiphertext() {
-        val provider = FakeProvider()
+        val provider = FakeDataKeyProvider()
         val good = CipherFileFormat.encode("payload".encodeToByteArray(), provider)
         try {
             CipherFileFormat.decode(good.copyOfRange(0, good.size - 3), provider)

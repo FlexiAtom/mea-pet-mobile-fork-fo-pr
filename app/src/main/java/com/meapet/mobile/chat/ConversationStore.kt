@@ -1,6 +1,9 @@
 package com.meapet.mobile.chat
 
 import android.util.Log
+import com.meapet.mobile.security.AtRestCrypto
+import com.meapet.mobile.security.CipherFileFormat
+import com.meapet.mobile.security.KeyUnavailableException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,16 +25,23 @@ import java.io.File
  * - [persistAsync] 采用合并写（conflate）：连续多次提交只落盘最新快照，
  *   避免每条消息一次磁盘 IO。
  *
+ * ## 常驻加密（双支路）
+ * 磁盘形态**看文件自己**（[CipherFileFormat] 自描述），不看开关——开关只决定写侧。
+ * 读侧三分：明文=现行为；密文解不开（密钥档）=**不改名不销毁**返回空并报密钥错误；
+ * 密文解出但 JSON 坏=走 `.corrupt`。
+ *
  * ## 低耦合
  * - 仅操作 [ChatMessage] 数据与文件，不依赖任何业务模块；
  * - 由 [ConversationManager] 在消息变更后调用。
  *
  * @param dir 存储目录（应用 filesDir；JVM 测试传临时目录）
  * @param scope 落盘用协程作用域（应用级；测试可传 TestScope）
+ * @param crypto 常驻加密接缝（null=明文时代的全部行为，测试与未启用路径零变化）
  */
 class ConversationStore(
     private val dir: File,
-    scope: CoroutineScope
+    scope: CoroutineScope,
+    private val crypto: AtRestCrypto? = null,
 ) {
     companion object {
         private const val TAG = "ConversationStore"
@@ -93,14 +103,27 @@ class ConversationStore(
             Log.d(TAG, "No persisted conversation found")
             return emptyList()
         }
+        val text = try {
+            decodeTextLocked(file)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: KeyUnavailableException) {
+            // 密钥档：数据仍在盘上，改名 .corrupt 等于判死——只报错，返回空但不毁文件
+            Log.e(TAG, "Conversation is encrypted but key is unavailable; file kept untouched", e)
+            return emptyList()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load conversation, backing up corrupted file", e)
+            backupCorruptedFileLocked()
+            return emptyList()
+        }
         try {
-            val messages = json.decodeFromString<List<ChatMessage>>(file.readText())
+            val messages = json.decodeFromString<List<ChatMessage>>(text)
             Log.i(TAG, "Loaded ${messages.size} conversation messages from disk")
             messages
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load conversation, backing up corrupted file", e)
+            Log.e(TAG, "Failed to parse conversation, backing up corrupted file", e)
             backupCorruptedFileLocked()
             emptyList()
         }
@@ -128,6 +151,15 @@ class ConversationStore(
         try {
             val text = json.encodeToString(snapshot)
             dir.mkdirs()
+            val crypto = this.crypto
+            if (crypto != null && crypto.enabled) {
+                // 密文写自带原子替换；tmp 名分态，避免与明文路共用互踩
+                val reason = crypto.tryWrite(file, "$FILE_NAME.enc.tmp", text.encodeToByteArray())
+                if (reason != null) {
+                    Log.e(TAG, "Failed to persist encrypted conversation: $reason")
+                }
+                return
+            }
             // 先写临时文件再 rename，避免写入中途崩溃导致文件截断
             val tmp = File(dir, "$FILE_NAME.tmp")
             tmp.writeText(text)
@@ -140,6 +172,18 @@ class ConversationStore(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to persist conversation", e)
         }
+    }
+
+    /** 读侧解码：明文直读；密文走文件格（**密钥丢失抛 [KeyUnavailableException]**）。 */
+    private fun decodeTextLocked(target: File): String {
+        val encrypted = CipherFileFormat.isEncryptedFile(target)
+        val crypto = this.crypto
+        if (encrypted && crypto == null) {
+            // 接线缺席也要拒——按明文硬读会撞进 .corrupt 判死路
+            throw KeyUnavailableException("会话文件是密文，但本机未接常驻解密")
+        }
+        if (encrypted) return requireNotNull(crypto).readPlain(target).decodeToString()
+        return target.readText()
     }
 
     /** 将损坏的持久化文件挪到 `.corrupt` 备份，防止每次启动重复解析失败。 */
