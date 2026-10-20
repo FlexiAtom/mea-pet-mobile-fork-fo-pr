@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Android 11 及以下的自动备份规则（API 31+ 使用 data_extraction_rules.xml）。
-   See https://developer.android.com/guide/topics/data/autobackup
--->
-<full-backup-content>
-    <!-- DataStore 中保存了 API Key，禁止随云备份上传 -->
-    <exclude domain="file" path="datastore/meapet_preferences.preferences_pb" />
-</full-backup-content>

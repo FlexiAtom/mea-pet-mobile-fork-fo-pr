@@ -19,9 +19,28 @@ import com.meapet.mobile.core.AppInfo
 // 硬编码在此而非 local.properties：修订政策必然改动本文件文案，版本号/日期随代码一起
 // 提交，避免放配置里时漏改。修订时必须同时递增版本号并更新日期（与 MainActivity 的
 // 版本比对逻辑配合：版本号变化 → 老用户重新弹窗确认）。
-const val PRIVACY_POLICY_VERSION = "1.2"
+const val PRIVACY_POLICY_VERSION = "1.3"
 const val PRIVACY_POLICY_EFFECTIVE_DATE = "2026-07-29"
-const val PRIVACY_POLICY_UPDATE_DATE = "2026-08-31"
+const val PRIVACY_POLICY_UPDATE_DATE = "2026-10-20"
+
+/**
+ * 「数据导出与自动备份」小节：两份政策共用（这一节的真值由应用自身的数据通道决定，
+ * 与是否集成统计 SDK 无关，写两遍必然漂移）。
+ */
+@Composable
+private fun PrivacyBackupSection(title: String) {
+    PrivacySection(title) {
+        PrivacyBullet("本应用不参与系统的自动备份与设备迁移：云备份、换机迁移都不会带走本应用的数据")
+        PrivacyBullet("需要把数据带到另一台设备时，由你在「设置 → 数据与备份」里自行导出")
+        PrivacyBullet("导出写成一个 zip 文件，保存位置由你在系统面板里选；整个过程不经过网络、不上传任何服务器")
+        PrivacyBullet("包内内容按你的勾选：设置偏好（API 地址、模型名等）、对话历史、记忆、背景壁纸。" +
+            "API Key、各类隐私授权标记与开发者选项不进包")
+        PrivacyBullet("包以 AES-256 加密，口令完全由你设定、应用不做任何留存——口令遗失后包无法打开，" +
+            "开发者不提供找回途径")
+        PrivacyBullet("导出包由你自己保管。你把它复制到网盘、聊天工具等第三方之后，离开本机的范围由你决定")
+        PrivacyBullet("导入会用包里的内容覆盖本机同类数据，执行前需逐项确认")
+    }
+}
 
 /**
  * 共享的隐私政策正文内容（纯内容，不含任何外壳组件）。
@@ -112,13 +131,15 @@ private fun PrivacyPolicyWithUmeng() {
         )
     }
 
-    PrivacySection("七、你的权利") {
+    PrivacyBackupSection("七、数据导出与自动备份")
+
+    PrivacySection("八、你的权利") {
         PrivacyBullet("你可以随时在「设置」中取消数据采集授权")
         PrivacyBullet("取消授权后，你可以选择是否卸载本应用以删除本地数据")
         PrivacyBullet("你可以在系统中清除应用数据，以删除本地保存的配置信息")
     }
 
-    PrivacySection("八、联系我们") {
+    PrivacySection("九、联系我们") {
         Text(
             "本隐私政策主体为 ${AppInfo.devName}。如有任何关于隐私与数据采集的疑问，可通过 GitHub 仓库（${AppInfo.gitRepoUrl}）Issues 联系开发者。",
             style = MaterialTheme.typography.bodySmall,
@@ -145,11 +166,13 @@ private fun PrivacyPolicyWithoutSdk() {
         PrivacyBullet("你的聊天、记忆与设置等数据仅存储于本机，不会上传")
     }
 
-    PrivacySection("三、你的权利") {
+    PrivacyBackupSection("三、数据导出与自动备份")
+
+    PrivacySection("四、你的权利") {
         PrivacyBullet("你可以随时清除应用数据，以删除本地保存的配置与记录")
     }
 
-    PrivacySection("四、联系我们") {
+    PrivacySection("五、联系我们") {
         Text(
             "本隐私政策主体为 ${AppInfo.devName}。如有任何关于隐私与数据处理的疑问，可通过 GitHub 仓库（${AppInfo.gitRepoUrl}）Issues 联系开发者。",
             style = MaterialTheme.typography.bodySmall,

@@ -19,11 +19,12 @@
     <!-- API 33+ 前台服务通知需要运行时通知权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 系统自动备份整条关闭（云备份与设备迁移都不参与）：设置里存着 API Key，
+         对话与记忆是个人内容，默认通道兜不住。换机走设置里的「数据与备份」——
+         用户自定口令、AES-256 加密的导出包，明确知情才离开这台机器。 -->
     <application
         android:name=".app.MeaPetApplication"
-        android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
