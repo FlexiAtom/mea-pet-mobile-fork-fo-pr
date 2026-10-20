@@ -93,6 +93,7 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
             chatFile = container.conversationStore.backupFile(),
             memoryFile = container.memoryRepository.backupFile(),
             wallpaperFile = container.wallpaperStore.backupFileFor(settings.getWallpaperPath()),
+            atRestCrypto = container.atRestCrypto,
         )
     }
 
@@ -267,6 +268,8 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun Throwable.readableMessage(): String = when (this) {
         is ManifestRejectException, is BackupImportException -> message ?: "包校验未通过"
+        // 导出线的密钥档：说清"解不开所以不出包"，不让人以为包写坏了
+        is com.meapet.mobile.security.KeyUnavailableException -> "本机常驻加密解不开（密钥档），导出中止：${message}"
         else -> message ?: javaClass.simpleName
     }
 }

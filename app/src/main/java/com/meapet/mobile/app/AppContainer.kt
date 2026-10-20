@@ -105,8 +105,8 @@ class AppContainer(
         SettingsManager(context, atRestDataKeyProvider)
     }
 
-    /** 文件级常驻加密接缝：开关关（出厂态）时行为与明文时代逐字节一致。 */
-    private val atRestCrypto: com.meapet.mobile.security.AtRestCrypto by lazy {
+    /** 文件级常驻加密接缝：开关关（出厂态）时行为与明文时代逐字节一致。导出线也用它做解密读。 */
+    val atRestCrypto: com.meapet.mobile.security.AtRestCrypto by lazy {
         com.meapet.mobile.security.AtRestCrypto.providerBacked(
             enabled = { settingsManager.isAtRestEncryptionEnabled() },
             provider = atRestDataKeyProvider,
