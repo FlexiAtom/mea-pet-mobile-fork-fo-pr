@@ -23,6 +23,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
@@ -84,6 +85,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     current.copy(messages = mergeWithHistory(restored, current.messages))
                 }
             }
+        }
+
+        // 导入（以及它的失败回滚）会整体替换 ConversationManager 的内容，
+        // 那是本 VM 看不见的外部改动——不重读就继续显示旧对话，直到进程重启。
+        // 这里刻意用**严格替换**而不是 [reloadHistory] 的合并：导入语义是"以包内为准"，
+        // 把旧副本留在尾部等于没换；[reloadHistory] 的空历史早退也正好不适用于
+        // "包里就是一段空对话"这一格。
+        viewModelScope.launch {
+            container.conversationManager.snapshotRevision
+                .drop(1)
+                .collect { _state.update { it.copy(messages = chatService.getHistory()) } }
         }
 
         // 监听 Live2D 触摸分区事件→添加系统消息气泡

@@ -40,6 +40,23 @@ class StoreImportApisTest {
         assertEquals(listOf("导入的消息"), mgr.getMessages().map { it.content })
     }
 
+    /**
+     * UI 持有的是消息副本，只有整体替换是它看不见的外部改动，
+     * 所以替换必须留下一个可订阅的代号（导入与回滚各算一次）；日常追加不该惊动它。
+     */
+    @Test
+    fun conversation_replaceAllSignalsRevisionButAppendDoesNot() {
+        val mgr = ConversationManager()
+        val start = mgr.snapshotRevision.value
+
+        mgr.addMessage(ChatMessage(ChatRole.user, "日常追加"))
+        assertEquals("追加不改代号", start, mgr.snapshotRevision.value)
+
+        mgr.replaceAll(listOf(ChatMessage(ChatRole.user, "导入的一条")))
+        mgr.replaceAll(emptyList())
+        assertEquals(start + 2, mgr.snapshotRevision.value)
+    }
+
     @Test
     fun conversation_undoPathRestoresExactlyWhatWasThere() = runTest {
         val dir = tmp.newFolder()

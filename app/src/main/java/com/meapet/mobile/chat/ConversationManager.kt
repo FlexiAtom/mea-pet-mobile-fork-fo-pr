@@ -1,6 +1,10 @@
 package com.meapet.mobile.chat
 
 import android.util.Log
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * 会话历史管理器。
@@ -32,6 +36,15 @@ class ConversationManager(
 ) {
     private val lock = Any()
     private val messages = mutableListOf<ChatMessage>()
+
+    /**
+     * 整体替换的代号，每次 [replaceAll] 加一。
+     *
+     * UI 侧（ChatViewModel）持有的是消息**副本**，日常追加由它自己同步更新；
+     * 只有整体替换（导入落地与失败回滚）是它看不见的外部改动，靠这个代号触发重读。
+     */
+    private val _snapshotRevision = MutableStateFlow(0L)
+    val snapshotRevision: StateFlow<Long> = _snapshotRevision.asStateFlow()
 
     companion object {
         private const val TAG = "ConversationManager"
@@ -93,6 +106,7 @@ class ConversationManager(
             trimWindow()
             persistLocked()
         }
+        _snapshotRevision.update { it + 1 }
         Log.i(TAG, "Replaced conversation with ${newMessages.size} messages (total: $size)")
     }
 

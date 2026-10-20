@@ -3,6 +3,7 @@ package com.meapet.mobile.viewmodel
 import com.meapet.mobile.chat.ChatMessage
 import com.meapet.mobile.chat.ChatRole
 import com.meapet.mobile.chat.ChatService
+import com.meapet.mobile.chat.ConversationManager
 import com.meapet.mobile.app.AppContainer
 import com.meapet.mobile.app.MeaPetApplication
 import com.meapet.mobile.memory.MemoryItem
@@ -49,6 +50,7 @@ class ChatViewModelTest {
     private lateinit var application: MeaPetApplication
     private lateinit var container: AppContainer
     private lateinit var chatService: ChatService
+    private lateinit var conversationManager: ConversationManager
     private lateinit var memoryManager: MemoryManager
     private lateinit var updateChecker: UpdateChecker
     private lateinit var ttsManager: TtsManager
@@ -60,12 +62,15 @@ class ChatViewModelTest {
         application = mock()
         container = mock()
         chatService = mock()
+        // VM 订阅它的替换代号（导入整体换会话时 UI 要重读）；给真实例，测试里可直接驱动
+        conversationManager = ConversationManager()
         memoryManager = mock()
         updateChecker = mock()
         ttsManager = mock()
         settingsManager = mock()
         // AppContainer 属性为 by lazy，whenever(getter) 会拿到 null；用 doReturn 直接设定
         Mockito.doReturn(chatService).`when`(container).chatService
+        Mockito.doReturn(conversationManager).`when`(container).conversationManager
         Mockito.doReturn(memoryManager).`when`(container).memoryManager
         Mockito.doReturn(updateChecker).`when`(container).updateChecker
         Mockito.doReturn(ttsManager).`when`(container).ttsManager
@@ -103,9 +108,28 @@ class ChatViewModelTest {
         assertEquals(listOf(msg), vm.state.value.messages)
     }
 
+    /**
+     * 导入落地走的是 ConversationManager.replaceAll——那是 VM 看不见的外部改动。
+     * 不跟着重读，设置页导完回到聊天页看到的还是导入前那份旧副本（真机实测到的缺陷）。
+     */
     @Test
-    fun `发送消息会调用 ChatService`() = runTest(dispatcher.scheduler) {
-        // ViewModel 传入自己的乐观消息（同 id 入史），因此 stub/verify 的是 ChatMessage 重载
+    fun `整体替换会话后 UI 换成新历史而不是留着旧副本`() = runTest(dispatcher.scheduler) {
+        val stale = ChatMessage(role = ChatRole.user, content = "导入前的旧对话")
+        whenever(chatService.getHistory()).thenReturn(listOf(stale))
+        val vm = ChatViewModel(application)
+        vm.advance()
+        assertEquals(listOf(stale), vm.state.value.messages)
+
+        val imported = ChatMessage(role = ChatRole.user, content = "包里的对话")
+        whenever(chatService.getHistory()).thenReturn(listOf(imported))
+        conversationManager.replaceAll(listOf(imported))
+        vm.advance()
+
+        assertEquals(listOf(imported), vm.state.value.messages)
+    }
+
+    @Test
+    fun `发送消息会调用 ChatService`() = runTest(dispatcher.scheduler) {        // ViewModel 传入自己的乐观消息（同 id 入史），因此 stub/verify 的是 ChatMessage 重载
         wheneverBlocking { chatService.sendMessage(any<ChatMessage>()) }
             .thenReturn(Result.success(ChatMessage(ChatRole.user, "hi") to reply(ChatMessage(ChatRole.user, "hi"))))
 
