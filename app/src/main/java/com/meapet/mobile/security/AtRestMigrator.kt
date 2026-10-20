@@ -25,8 +25,9 @@ class MigrationRejectedException(reason: String) : Exception(reason)
  * 各文件各归一态、标记文件记进度、重跑幂等续传，无回滚亦无损。
  *
  * 已知边界（如实留档）：转换协程跑的间隙里，另一路写路径可能按旧开关语义把刚
- * 转换的文件重写回旧态——后果是"开关开、存量明文"这类不一致，不毁数据；
- * [isConsistent] 能查出来，UI 再触发一次即收敛。
+ * 转换的文件重写回旧态，或让迁移读到的旧快照盖掉一次刚落的更新——既有数据不损坏，
+ * 最新快照仍在内层管理器的内存里（若恰在下次落盘前被杀，丢的只是那一笔新写入）。
+ * [isConsistent] 能查出形态不一致，UI 再触发一次即收敛。
  */
 class AtRestMigrator(
     private val dir: File,

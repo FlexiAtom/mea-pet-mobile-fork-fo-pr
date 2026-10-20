@@ -397,8 +397,10 @@ class SettingsManager(
 
     /** 迁移编排专用：把存储值按给定变换改写（明文↔k1: 密文），不碰其他键。 */
     suspend fun rewriteApiKeyStored(transform: (String) -> String) {
-        val next = transform(peekApiKeyRawStored())
-        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_API_KEY] = next }
+        // 变换放进 edit 内：读-改-写是 DataStore 的一次原子事务，转换途中新设的 Key 不会被旧快照盖掉
+        cachedPrefs = dataStore.edit { prefs ->
+            prefs[KEY_API_KEY] = transform(prefs[KEY_API_KEY] ?: "")
+        }
     }
 
     // ── ApiKeySettings（迁移编排的三路接缝，委托上面三法） ──────────

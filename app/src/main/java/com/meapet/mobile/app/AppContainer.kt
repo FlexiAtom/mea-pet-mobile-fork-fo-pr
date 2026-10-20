@@ -90,7 +90,7 @@ class AppContainer(
         com.meapet.mobile.security.KeystoreDataKeyProvider()
     }
 
-    /** 总开关的迁移编排（设置页触发；标记文件放 cacheDir，残料由进页清扫兜底）。 */
+    /** 总开关的迁移编排（设置页触发；标记文件放 cacheDir——丢了只少一条续传提示，文件自描述足以收敛）。 */
     val atRestMigrator: com.meapet.mobile.security.AtRestMigrator by lazy {
         com.meapet.mobile.security.AtRestMigrator(
             dir = File(context.cacheDir, "security"),
