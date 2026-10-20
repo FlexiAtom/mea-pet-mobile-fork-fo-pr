@@ -31,8 +31,13 @@ import kotlinx.coroutines.runBlocking
  * 该模块**不依赖**任何其他模块，可独立测试。
  *
  * @param context Application Context
+ * @param dataKeyProvider 常驻加密密钥档（null=值级不加密，明文时代全部行为不变；
+ *   API Key 读写经 [com.meapet.mobile.security.ValueCipher] 透明编解码）
  */
-class SettingsManager(context: Context) {
+class SettingsManager(
+    context: Context,
+    private val dataKeyProvider: com.meapet.mobile.security.DataKeyProvider? = null,
+) {
 
     private val dataStore = context.appDataStore
 
@@ -88,6 +93,7 @@ class SettingsManager(context: Context) {
     private val KEY_WALLPAPER_BLUR = doublePreferencesKey(SettingsKeys.WALLPAPER_BLUR)
     private val KEY_BACKUP_NOTICE_ACKED = booleanPreferencesKey(SettingsKeys.BACKUP_NOTICE_ACKED)
     private val KEY_PRIVACY_VERSION_SHOWN = stringPreferencesKey(SettingsKeys.PRIVACY_VERSION_SHOWN)
+    private val KEY_AT_REST_ENCRYPTION_ENABLED = booleanPreferencesKey(SettingsKeys.AT_REST_ENCRYPTION_ENABLED)
 
     // ── Flows (响应式订阅) ────────────────────────────
 
@@ -257,7 +263,21 @@ class SettingsManager(context: Context) {
         return before
     }
 
-    fun getApiKey(): String = currentPrefs()[KEY_API_KEY] ?: ""
+    /**
+     * API Key 现值。值带 `k1:` 前缀时经密钥档解密——**读侧不查开关**。
+     * 密钥丢失按未配置处理（空串）并把原因进日志：调用方遍布网络层，
+     * 抛出去会炸冷启动；解不开的密文当 Key 发出去更不可接受。
+     */
+    fun getApiKey(): String {
+        val stored = currentPrefs()[KEY_API_KEY] ?: ""
+        val provider = dataKeyProvider ?: return stored
+        return try {
+            com.meapet.mobile.security.ValueCipher.decode(stored, provider)
+        } catch (e: Exception) {
+            Log.e(TAG, "API key present but undecryptable (treated as unset): ${e.javaClass.simpleName}")
+            ""
+        }
+    }
     fun getApiUrl(): String = currentPrefs()[KEY_API_URL] ?: SettingsKeys.Defaults.API_URL
     fun getModel(): String = currentPrefs()[KEY_MODEL] ?: SettingsKeys.Defaults.MODEL
     fun getTemperature(): Double = currentPrefs()[KEY_TEMPERATURE] ?: SettingsKeys.Defaults.TEMPERATURE
@@ -352,8 +372,33 @@ class SettingsManager(context: Context) {
     // edit 返回写入后的最新快照，随手更新缓存，保证同步 getter 读己之写
 
     suspend fun setApiKey(key: String) {
-        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_API_KEY] = key }
+        val provider = dataKeyProvider
+        val stored = if (provider != null && isAtRestEncryptionEnabled()) {
+            com.meapet.mobile.security.ValueCipher.encode(key, provider)
+        } else {
+            key
+        }
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_API_KEY] = stored }
         Log.d(TAG, "API Key updated")
+    }
+
+    /** 常驻加密总开关（写侧口径；读侧看值的自描述，不查这里）。 */
+    fun isAtRestEncryptionEnabled(): Boolean =
+        currentPrefs()[KEY_AT_REST_ENCRYPTION_ENABLED] ?: SettingsKeys.Defaults.AT_REST_ENCRYPTION_ENABLED
+
+    /** 总开关落盘。迁移编排成功之前不写 true——失败保持原态由调用方兜。 */
+    suspend fun setAtRestEncryptionEnabled(enabled: Boolean) {
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_AT_REST_ENCRYPTION_ENABLED] = enabled }
+        Log.i(TAG, "At-rest encryption toggle set to $enabled")
+    }
+
+    /** API Key 现值原样（不透明编解码）——迁移编排专用，双支路的"这一路"走它。 */
+    fun peekApiKeyRawStored(): String = currentPrefs()[KEY_API_KEY] ?: ""
+
+    /** 迁移编排专用：把存储值按给定变换改写（明文↔k1: 密文），不碰其他键。 */
+    suspend fun rewriteApiKeyStored(transform: (String) -> String) {
+        val next = transform(peekApiKeyRawStored())
+        cachedPrefs = dataStore.edit { prefs -> prefs[KEY_API_KEY] = next }
     }
 
     suspend fun setApiUrl(url: String) {

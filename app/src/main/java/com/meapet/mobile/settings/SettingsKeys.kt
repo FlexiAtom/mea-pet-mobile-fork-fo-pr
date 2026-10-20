@@ -91,6 +91,12 @@ object SettingsKeys {
      */
     const val BACKUP_NOTICE_ACKED = "backup_notice_acked"
 
+    /**
+     * 常驻加密总开关（封形 A：默认关）。磁盘形态看文件自描述，这个键只决定写侧；
+     * 不入 G4 白名单（封版清单 20 键不动）。
+     */
+    const val AT_REST_ENCRYPTION_ENABLED = "at_rest_encryption_enabled"
+
     // ── TTS 语音 ─────────────────────────────────────
     const val TTS_MAIN_ENABLED = "tts_main_enabled"        // 主界面语音开关
     const val TTS_OVERLAY_ENABLED = "tts_overlay_enabled"  // 悬浮窗语音开关
@@ -149,5 +155,8 @@ object SettingsKeys {
 
         // 数据与备份（告知出厂未确认，首次导出前必须看到一次）
         const val BACKUP_NOTICE_ACKED = false
+
+        // 常驻加密（封形 A 出厂默认关）
+        const val AT_REST_ENCRYPTION_ENABLED = false
     }
 }

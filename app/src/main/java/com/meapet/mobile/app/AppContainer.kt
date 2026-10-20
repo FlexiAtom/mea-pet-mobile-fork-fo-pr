@@ -81,9 +81,25 @@ class AppContainer(
         /** 检索线报错提示里失败理由的截断长度（理由全文进日志，气泡只给短的一截）。 */
         private const val ERROR_REASON_MAX_CHARS = 60
     }
-    /** 设置管理器（独立，无依赖） */
+    /**
+     * 常驻加密密钥档（封形 A）。首次触碰才生成/读取——出厂默认关，
+     * 没开过加密的机器不经历任何 Keystore 动作。
+     */
+    private val atRestDataKeyProvider: com.meapet.mobile.security.KeystoreDataKeyProvider by lazy {
+        com.meapet.mobile.security.KeystoreDataKeyProvider()
+    }
+
+    /** 设置管理器（值级 API Key 编解码在此接线；开关位仍归 DataStore 自己）。 */
     val settingsManager: SettingsManager by lazy {
-        SettingsManager(context)
+        SettingsManager(context, atRestDataKeyProvider)
+    }
+
+    /** 文件级常驻加密接缝：开关关（出厂态）时行为与明文时代逐字节一致。 */
+    private val atRestCrypto: com.meapet.mobile.security.AtRestCrypto by lazy {
+        com.meapet.mobile.security.AtRestCrypto.providerBacked(
+            enabled = { settingsManager.isAtRestEncryptionEnabled() },
+            provider = atRestDataKeyProvider,
+        )
     }
 
     /**
@@ -122,7 +138,7 @@ class AppContainer(
 
     /** 会话历史持久化存储。 */
     val conversationStore: ConversationStore by lazy {
-        ConversationStore(context.filesDir, applicationScope)
+        ConversationStore(context.filesDir, applicationScope, atRestCrypto)
     }
 
     /** 会话历史管理器。 */
@@ -136,7 +152,7 @@ class AppContainer(
 
     /** 记忆存储器。 */
     val memoryRepository: MemoryRepository by lazy {
-        MemoryRepository(context.filesDir, maxItems = config.maxMemoryItems)
+        MemoryRepository(context.filesDir, maxItems = config.maxMemoryItems, crypto = atRestCrypto)
     }
 
     /** 记忆业务服务。 */
