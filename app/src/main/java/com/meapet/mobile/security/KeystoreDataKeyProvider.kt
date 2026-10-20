@@ -32,7 +32,7 @@ class KeystoreDataKeyProvider(private val alias: String = DEFAULT_ALIAS) : DataK
     override fun keyExists(): Boolean = secretKey() != null
 
     /** 幂等确保密钥在场；返回是否"本次新造"（UI 迁移提示用）。 */
-    fun ensureKey(): Boolean {
+    override fun ensureKey(): Boolean {
         if (keyExists()) return false
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
         generator.init(

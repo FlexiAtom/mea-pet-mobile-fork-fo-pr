@@ -49,6 +49,72 @@ class AtRestMigratorTest {
         assertTrue("存量与开关一致", migrator.isConsistent())
     }
 
+    /**
+     * 真机首跑的形状：cacheDir 下我们那个子目录**还不存在**（其余测试都先 mkdirs，
+     * 正好把这一格盖住了——10-21 装机就死在这里：writeText 不建父目录，ENABLE 一步没走就 ENOENT）。
+     */
+    @Test
+    fun enable_whenMarkerDirectoryAbsent_createsIt_andProgressReadableMidRun() = runTest {
+        val dir = tmp.newFolder()
+        val provider = FakeDataKeyProvider()
+        val settings = FakeApiKeySettings()
+        val chat = File(dir, "chat.json").apply { writeText("[{\"a\":1}]") }
+        val memory = File(dir, "mem.json").apply { writeText("[]") }
+        val crypto = AtRestCrypto.providerBacked({ settings.atRestEnabled }, provider)
+        val migrator = AtRestMigrator(File(dir, "cache/security"), chat, memory, settings, crypto)
+
+        var seenMidRun: MigrationProgress? = null
+        assertEquals(3, migrator.enable { seenMidRun = seenMidRun ?: migrator.pendingProgress() })
+        assertNotNull("转换途中要读得到进度标记", seenMidRun)
+        assertEquals(MigrationDirection.ENABLE, seenMidRun?.direction)
+        assertTrue(CipherFileFormat.isEncryptedFile(chat))
+        assertTrue(settings.atRestEnabled)
+        assertNull(migrator.pendingProgress())
+        assertTrue(migrator.isConsistent())
+    }
+
+    /** 真机初装：Keystore 里没有钥，encryptCipher 直接 require 会炸——ENABLE 必须先 ensureKey。 */
+    @Test
+    fun enable_onFreshKeystore_generatesKeyBeforeWritingCiphertext() = runTest {
+        val dir = tmp.newFolder()
+        val provider = FakeDataKeyProvider().apply { freshInstall() }
+        val settings = FakeApiKeySettings()
+        val chat = File(dir, "chat.json").apply { writeText("[{\"a\":1}]") }
+        val memory = File(dir, "mem.json").apply { writeText("[]") }
+        val crypto = AtRestCrypto.providerBacked({ settings.atRestEnabled }, provider)
+        val migrator = AtRestMigrator(File(dir, "cache/security"), chat, memory, settings, crypto)
+
+        assertFalse("前提：初装时没有钥", provider.keyExists())
+        assertEquals(3, migrator.enable())
+        assertTrue("启用后钥必须已生成", provider.keyExists())
+        assertTrue(CipherFileFormat.isEncryptedFile(chat))
+        assertTrue(settings.atRestEnabled)
+        assertEquals("[]", String(CipherFileFormat.decodeFile(memory, provider)))
+    }
+
+    /** 密钥被换/丢失而盘上仍有旧密文时，启用方向绝不能偷偷生成新钥（那等于把旧数据判死）。 */
+    @Test
+    fun enable_whenKeyGoneButCiphertextRemains_refusesToRotateKey() = runTest {
+        val dir = tmp.newFolder()
+        val provider = FakeDataKeyProvider()
+        val settings = FakeApiKeySettings()
+        val chat = File(dir, "chat.json").apply { writeText("[{\"a\":1}]") }
+        val memory = File(dir, "mem.json").apply { writeText("[]") }
+        val cache = File(dir, "cache")
+        val crypto = AtRestCrypto.providerBacked({ settings.atRestEnabled }, provider)
+        AtRestMigrator(cache, chat, memory, settings, crypto).enable()
+
+        val lostKey = FakeDataKeyProvider().apply { freshInstall() }
+        val revived = AtRestMigrator(
+            cache, chat, memory, settings,
+            AtRestCrypto.providerBacked({ settings.atRestEnabled }, lostKey)
+        )
+        val error = runCatching { revived.enable() }.exceptionOrNull()
+        assertTrue("必须拒绝而不是换钥", error is MigrationRejectedException)
+        assertFalse("不许生成新钥", lostKey.keyExists())
+        assertTrue("旧密文原样留盘", CipherFileFormat.isEncryptedFile(chat))
+    }
+
     @Test
     fun disable_restoresPlaintext_everywhere() = runTest {
         val dir = tmp.newFolder()

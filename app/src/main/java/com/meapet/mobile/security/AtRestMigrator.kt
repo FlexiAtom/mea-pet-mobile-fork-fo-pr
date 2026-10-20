@@ -111,6 +111,21 @@ class AtRestMigrator(
         ) {
             return 0
         }
+        // 启用方向必须先有钥：真机初装时 Keystore 里根本没有这把钥（encryptCipher 会直接 require 失败），
+        // 而 JVM 假 provider 自带来钥，把这一格盖了整整一轮。
+        if (direction == MigrationDirection.ENABLE) {
+            val provider = crypto.provider()
+            if (!provider.keyExists() && anythingCipherish()) {
+                throw MigrationRejectedException(
+                    "密钥不在场但盘上已有密文；生成新钥会把旧数据变成解不开的孤儿，先走「重置加密（旧数据作废）」"
+                )
+            }
+            try {
+                provider.ensureKey()
+            } catch (e: Exception) {
+                throw MigrationRejectedException("Keystore 密钥生成失败：${e.message ?: e.javaClass.simpleName}")
+            }
+        }
         var done = progress?.doneSteps ?: emptySet()
         val steps = if (direction == MigrationDirection.ENABLE) STEPS_ENABLE else STEPS_DISABLE
         if (direction == MigrationDirection.DISABLE) {
@@ -184,7 +199,11 @@ class AtRestMigrator(
         MigrationProgress(direction, done)
     }.getOrNull()
 
+    /** 标记目录在真机上是"首次转换时才存在"的（cacheDir 下我们自己的子目录），所以这里必须自己造。 */
     private fun writeProgress(direction: MigrationDirection, done: Set<String>) {
+        if (!dir.isDirectory && !dir.mkdirs()) {
+            throw MigrationRejectedException("进度标记目录建不出来（${dir.path}），转换不启动")
+        }
         val body = """{"direction":"$direction","done":[${done.joinToString(",") { "\"$it\"" }}]}"""
         progressFile().writeText(body)
     }
