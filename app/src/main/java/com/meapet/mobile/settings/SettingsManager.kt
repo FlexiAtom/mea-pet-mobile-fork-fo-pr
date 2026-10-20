@@ -37,7 +37,7 @@ import kotlinx.coroutines.runBlocking
 class SettingsManager(
     context: Context,
     private val dataKeyProvider: com.meapet.mobile.security.DataKeyProvider? = null,
-) {
+) : com.meapet.mobile.security.ApiKeySettings {
 
     private val dataStore = context.appDataStore
 
@@ -400,6 +400,22 @@ class SettingsManager(
         val next = transform(peekApiKeyRawStored())
         cachedPrefs = dataStore.edit { prefs -> prefs[KEY_API_KEY] = next }
     }
+
+    // ── ApiKeySettings（迁移编排的三路接缝，委托上面三法） ──────────
+
+    override fun peekRawStored(): String = peekApiKeyRawStored()
+
+    override suspend fun rewriteStored(transform: (String) -> String) = rewriteApiKeyStored(transform)
+
+    override var atRestEnabled: Boolean
+        get() = isAtRestEncryptionEnabled()
+        set(value) {
+            // 接口要同步 setter，DataStore 只有异步 edit——冷启动快照已预热，
+            // 这里 runBlocking 的阻塞窗口与 PrivacyConsentManager 同档（一次性、毫秒级）
+            cachedPrefs = kotlinx.coroutines.runBlocking {
+                dataStore.edit { prefs -> prefs[KEY_AT_REST_ENCRYPTION_ENABLED] = value }
+            }
+        }
 
     suspend fun setApiUrl(url: String) {
         cachedPrefs = dataStore.edit { prefs -> prefs[KEY_API_URL] = url }

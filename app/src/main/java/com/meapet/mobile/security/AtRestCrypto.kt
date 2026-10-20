@@ -25,7 +25,8 @@ interface AtRestCrypto {
 
     companion object {
         fun providerBacked(enabled: () -> Boolean, provider: DataKeyProvider): AtRestCrypto =
-            object : AtRestCrypto {
+            object : AtRestCrypto, ProviderExposing {
+                override val provider: DataKeyProvider = provider
                 override val enabled: Boolean get() = enabled()
 
                 override fun encryptCipher() = provider.encryptCipher()

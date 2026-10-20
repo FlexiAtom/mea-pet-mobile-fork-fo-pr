@@ -89,6 +89,17 @@ class AppContainer(
         com.meapet.mobile.security.KeystoreDataKeyProvider()
     }
 
+    /** 总开关的迁移编排（设置页触发；标记文件放 cacheDir，残料由进页清扫兜底）。 */
+    val atRestMigrator: com.meapet.mobile.security.AtRestMigrator by lazy {
+        com.meapet.mobile.security.AtRestMigrator(
+            dir = File(context.cacheDir, "security"),
+            chatFile = File(context.filesDir, "meapet_conversation.json"),
+            memoryFile = File(context.filesDir, "meapet_memories.json"),
+            apiKeySettings = settingsManager,
+            crypto = atRestCrypto,
+        )
+    }
+
     /** 设置管理器（值级 API Key 编解码在此接线；开关位仍归 DataStore 自己）。 */
     val settingsManager: SettingsManager by lazy {
         SettingsManager(context, atRestDataKeyProvider)
