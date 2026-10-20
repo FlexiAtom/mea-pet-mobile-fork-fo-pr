@@ -49,8 +49,8 @@ class BackupFormatTest {
     fun entrySchemaTooNew_orUnknownName_rejectsThatEntryOnly() {
         assertFalse(BackupFormat.entrySupported(ManifestEntry("chat", schema = 2, bytes = 1, path = "files/chat")))
         assertFalse(BackupFormat.entrySupported(ManifestEntry("secrets", schema = 1, bytes = 1, path = "files/secrets")))
-        assertEquals(null, BackupFormat.entryCategory("secrets"))
-        assertEquals(BackupCategory.WALLPAPER, BackupFormat.entryCategory("wallpaper"))
+        assertEquals(null, BackupCategory.fromEntryName("secrets"))
+        assertEquals(BackupCategory.WALLPAPER, BackupCategory.fromEntryName("wallpaper"))
     }
 
     @Test

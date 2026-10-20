@@ -124,9 +124,13 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
         _state.update { it.copy(busy = true, notice = null) }
         viewModelScope.launch {
             val pwd = password.toCharArray()
+            // 暂存料要在失败时自己收走：clearStaged 已经把上一次的清了，
+            // 这一次 stageForRead 落的新文件只有这里拿得到引用。
+            var stagedFile: File? = null
             val outcome = runCatching {
                 withContext(Dispatchers.IO) {
                     val file = service.stageForRead(uri)
+                    stagedFile = file
                     file to BackupInspector.inspect(file, pwd)
                 }
             }
@@ -147,7 +151,7 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
             }.onFailure { t ->
-                runCatching { staged?.first?.delete() }
+                runCatching { stagedFile?.delete() }
                 staged = null
                 _state.update {
                     it.copy(

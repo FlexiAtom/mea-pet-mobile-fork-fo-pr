@@ -62,8 +62,6 @@ object BackupFormat {
 
     fun entrySupported(entry: ManifestEntry): Boolean =
         SUPPORTED_SCHEMA[entry.name] == entry.schema
-
-    fun entryCategory(name: String): BackupCategory? = BackupCategory.fromEntryName(name)
 }
 
 enum class BackupCategory(val entryName: String) {

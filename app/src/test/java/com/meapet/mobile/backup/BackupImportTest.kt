@@ -188,4 +188,41 @@ class BackupImportTest {
         }
         assertTrue(summary.applied.isEmpty())
     }
+
+    /**
+     * 解压上限：128 MiB 的暂存闸只卡住**压缩后**的体积，deflate 对全零正文能压到千倍级，
+     * 几百 KB 的包就够解出 GB 级；manifest 的 bytes 与 zip 头里的 uncompressedSize
+     * 都是包方自报（对账只保证两者互相一致，不保证真实）。所以闸必须按实际读到的字节下。
+     */
+    @Test
+    fun read_rejectsEntryExpandingPastTheCap() {
+        val total = 65L * 1024 * 1024
+        val zip = File(dir, "expands_past_cap.zip")
+        val zeros = ByteArray(1024 * 1024)
+        FileOutputStream(zip).use { sink ->
+            ZipOutputStream(sink, "口令1".toCharArray()).use { zipOut ->
+                zipOut.putNextEntry(entryParams("files/chat", total))
+                repeat((total / zeros.size).toInt()) { zipOut.write(zeros) }
+                zipOut.closeEntry()
+                val mb = BackupFormat.encode(
+                    BackupManifest(
+                        format = BackupFormat.SUPPORTED_FORMAT,
+                        createdAt = "t",
+                        entries = listOf(ManifestEntry("chat", 1, total, "files/chat")),
+                    )
+                ).toByteArray(Charsets.UTF_8)
+                zipOut.putNextEntry(entryParams(BackupExporter.MANIFEST_ENTRY, mb.size.toLong()))
+                zipOut.write(mb)
+                zipOut.closeEntry()
+            }
+        }
+        // 校验阶段只比头与 manifest（两者自洽），放行是预期的；闸落在读正文那一步
+        val contents = BackupInspector.inspect(zip, "口令1".toCharArray())
+        try {
+            BackupInspector.readText(contents, BackupCategory.CHAT, zip, "口令1".toCharArray())
+            fail("65 MiB 的正文竟然被整读进内存")
+        } catch (expected: ManifestRejectException) {
+            assertTrue(expected.message!!.contains("上限"))
+        }
+    }
 }

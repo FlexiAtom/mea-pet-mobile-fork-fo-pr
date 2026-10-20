@@ -2,6 +2,7 @@ package com.meapet.mobile.backup
 
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.FileHeader
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 
@@ -23,6 +24,51 @@ data class BackupContents(
  * 整份暂存到 cacheDir 再按中央目录读，这正是本案"cacheDir 暂存"那一步的用途。
  */
 object BackupInspector {
+
+    /**
+     * 单条目**解压后**的上限。
+     *
+     * 暂存的 128 MiB 只卡住压缩体积：deflate 极限约 1000:1，manifest 的 `bytes` 与
+     * zip 头里的 `uncompressedSize` 又都是包方自报（两者对账只保证它们互相一致）。
+     * 所以闸必须按**实际读到的字节**下——否则一句 `readBytes()` 就把堆撑爆，
+     * 而包是用户从任意位置选来的外部输入。
+     */
+    private const val MAX_ENTRY_BYTES = 64L * 1024 * 1024
+
+    private const val COPY_BUFFER_BYTES = 8 * 1024
+
+    private fun oversize(): Nothing = throw ManifestRejectException(
+        "条目解压后超过 ${MAX_ENTRY_BYTES / 1024 / 1024} MiB 上限，拒绝"
+    )
+
+    /** 边读边计数，越界即抛（调用方的中间体清理由 [BackupImporter] 的 finally 负责）。 */
+    private fun InputStream.readBounded(): ByteArray {
+        val out = ByteArrayOutputStream()
+        val buf = ByteArray(COPY_BUFFER_BYTES)
+        var total = 0L
+        while (true) {
+            val n = read(buf)
+            if (n < 0) break
+            total += n
+            if (total > MAX_ENTRY_BYTES) oversize()
+            out.write(buf, 0, n)
+        }
+        return out.toByteArray()
+    }
+
+    private fun InputStream.copyBoundedTo(target: File) {
+        target.outputStream().use { sink ->
+            val buf = ByteArray(COPY_BUFFER_BYTES)
+            var total = 0L
+            while (true) {
+                val n = read(buf)
+                if (n < 0) break
+                total += n
+                if (total > MAX_ENTRY_BYTES) oversize()
+                sink.write(buf, 0, n)
+            }
+        }
+    }
 
     fun inspect(stageFile: File, password: CharArray): BackupContents {
         ZipFile(stageFile, password).use { zip ->
@@ -78,13 +124,13 @@ object BackupInspector {
     ): Boolean {
         val pair = contents.perCategory[category] ?: return false
         ZipFile(stageFile, password).use { zip ->
-            zip.getInputStream(zip.getFileHeader(pair.first)).use { input: InputStream ->
-                target.outputStream().use { input.copyTo(it) }
+            zip.getInputStream(zip.getFileHeader(pair.first)).use { input ->
+                input.copyBoundedTo(target)
             }
         }
         return true
     }
 
     private fun ZipFile.readEntryText(header: FileHeader): String =
-        getInputStream(header).use { it.readBytes().toString(Charsets.UTF_8) }
+        getInputStream(header).use { it.readBounded().toString(Charsets.UTF_8) }
 }

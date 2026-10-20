@@ -30,8 +30,6 @@ class BackupService(context: Context) {
 
         /** 导出默认名的时间戳部分（人工裁决的命名口径：<UTC紧凑>_MeaPet-Android.zip）。 */
         fun utcCompactNow(): String = UTC_COMPACT.format(Instant.now())
-
-        fun isPlausiblePackageName(name: String): Boolean = name.lowercase().endsWith(".zip")
     }
 
     /** 把 SAF 选来的 zip 整份暂存到 cacheDir，返回本地文件（可随机重读，供中央目录解析）。 */
@@ -68,9 +66,6 @@ class BackupService(context: Context) {
     fun sweepStaleStaging() {
         runCatching { stagingDir.listFiles()?.forEach { it.delete() } }
     }
-
-    /** 当前暂存占用（字节），UI 可用来提示"上次操作留了东西"。 */
-    fun stagedBytes(): Long = stagingDir.listFiles()?.sumOf { it.length() } ?: 0L
 
     /**
      * SAF Uri 的显示名。各家 provider 的 `lastPathSegment` 形态不一（有的是

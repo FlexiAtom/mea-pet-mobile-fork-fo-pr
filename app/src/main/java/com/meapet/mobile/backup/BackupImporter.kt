@@ -69,10 +69,11 @@ class BackupImporter(private val applier: BackupApplier) {
                     BackupCategory.WALLPAPER -> {
                         val name = path.substringAfterLast('/')
                         val out = File(stageFile.parentFile, "wallpaper_in_$name")
+                        // 先登记再解：解到一半失败（超限、写盘错）也要被 finally 收走
+                        tempFiles += out
                         if (!BackupInspector.extractTo(contents, category, stageFile, password, out)) {
                             throw BackupImportException("壁纸条目解出失败: $path")
                         }
-                        tempFiles += out
                         applier.applyWallpaper(name, out)
                     }
                 }
