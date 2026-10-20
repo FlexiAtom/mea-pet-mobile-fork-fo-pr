@@ -83,9 +83,10 @@ class AppContainer(
     }
     /**
      * 常驻加密密钥档（封形 A）。首次触碰才生成/读取——出厂默认关，
-     * 没开过加密的机器不经历任何 Keystore 动作。
+     * 没开过加密的机器不经历任何 Keystore 动作。UI 用 [com.meapet.mobile.security.DataKeyProvider.keyExists]
+     * 判"密钥还在不在场"，据此决定给不给重置通道。
      */
-    private val atRestDataKeyProvider: com.meapet.mobile.security.KeystoreDataKeyProvider by lazy {
+    val atRestDataKeyProvider: com.meapet.mobile.security.KeystoreDataKeyProvider by lazy {
         com.meapet.mobile.security.KeystoreDataKeyProvider()
     }
 

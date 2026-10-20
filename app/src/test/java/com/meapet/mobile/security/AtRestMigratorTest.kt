@@ -152,4 +152,68 @@ class AtRestMigratorTest {
         assertEquals(0, migrator.disable())
         assertFalse(settings.atRestEnabled)
     }
+
+    /** 收敛路径：开关与存量不一致时，同方向重跑补齐——不能拿"已是这个态"当拒绝理由。 */
+    @Test
+    fun rerunEnable_afterAWriteWentBackToPlaintext_completesMissingPath() = runTest {
+        val dir = tmp.newFolder()
+        val provider = FakeDataKeyProvider()
+        val settings = FakeApiKeySettings()
+        val chat = File(dir, "chat.json").apply { writeText("[1]") }
+        val memory = File(dir, "mem.json").apply { writeText("[2]") }
+        val crypto = AtRestCrypto.providerBacked({ settings.atRestEnabled }, provider)
+        val migrator = AtRestMigrator(File(dir, "cache").apply { mkdirs() }, chat, memory, settings, crypto)
+        migrator.enable()
+
+        chat.writeText("[被另一路写回明文的会话]") // 已知边界：转换间隙的旧语义写入
+
+        assertFalse(migrator.isConsistent())
+        assertEquals(3, migrator.enable())
+        assertTrue("补齐后回到一致", migrator.isConsistent())
+        assertEquals("[被另一路写回明文的会话]", String(CipherFileFormat.decodeFile(chat, provider)))
+    }
+
+    /** 关着但盘上仍有密文（还原被杀后标记已清掉的极端格）：disable 不能当空操作跳过。 */
+    @Test
+    fun disable_whenSwitchOffButCiphertextRemains_stillRestores() = runTest {
+        val dir = tmp.newFolder()
+        val provider = FakeDataKeyProvider()
+        val settings = FakeApiKeySettings()
+        val chat = File(dir, "chat.json").apply { writeText("[1]") }
+        val crypto = AtRestCrypto.providerBacked({ settings.atRestEnabled }, provider)
+        val migrator = AtRestMigrator(File(dir, "cache").apply { mkdirs() }, chat, File(dir, "mem.json"), settings, crypto)
+        migrator.enable()
+        settings.atRestEnabled = false // 开关掉了，密文还在
+
+        assertEquals(3, migrator.disable())
+        assertEquals("[1]", chat.readText())
+    }
+
+    /** 密钥档不可解时的明示通路：旧数据作废——删两路密文、清值级密文、关开关。 */
+    @Test
+    fun discard_deletesCiphertextAndClearsKey_andTurnsToggleOff() = runTest {
+        val dir = tmp.newFolder()
+        val provider = FakeDataKeyProvider()
+        val settings = FakeApiKeySettings()
+        val chat = File(dir, "chat.json").apply { writeText("[1]") }
+        val memory = File(dir, "mem.json").apply { writeText("[2]") }
+        val cache = File(dir, "cache").apply { mkdirs() }
+        val crypto = AtRestCrypto.providerBacked({ settings.atRestEnabled }, provider)
+        val migrator = AtRestMigrator(cache, chat, memory, settings, crypto)
+        migrator.enable()
+
+        // 模拟密钥丢失
+        provider.exists = false
+        File(cache, "at_rest_migration.json").writeText("""{"direction":"DISABLE","done":["chat"]}""")
+        val plaintextBackup = File(dir, "chat_plain_kept.json").apply { writeBytes(chat.readBytes()) }
+
+        assertEquals(3, migrator.discardEncryptedData())
+        assertFalse("聊天密文作废", chat.exists())
+        assertFalse("记忆密文作废", memory.exists())
+        assertEquals("", settings.stored)
+        assertFalse(settings.atRestEnabled)
+        assertNull(migrator.pendingProgress())
+        assertTrue("作废不碰非密文文件", plaintextBackup.exists())
+        assertTrue(migrator.isConsistent())
+    }
 }

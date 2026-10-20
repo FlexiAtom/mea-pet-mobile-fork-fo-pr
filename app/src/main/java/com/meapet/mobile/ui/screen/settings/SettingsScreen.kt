@@ -80,8 +80,9 @@ private enum class SettingsPage(val title: String) {
  *
  * 各子页的 Section 在同包的 `*Settings.kt`，公共件在 `SettingsCommon.kt`。
  *
- * 「数据与备份」自带一个 [BackupViewModel]：它只读 container 上的存储对象，
- * 不掺进 SettingsViewModel 的状态流——两边同时改一条设置项会互相覆盖读到的值。
+ * 「数据与备份」自带两个 ViewModel：[BackupViewModel] 管导入导出，
+ * [com.meapet.mobile.viewmodel.AtRestSecurityViewModel] 管常驻加密那一节。它们只读 container
+ * 上的存储对象，不掺进 SettingsViewModel 的状态流——两边同时改一条设置项会互相覆盖读到的值。
  *
  * @param onBack 从根页返回（退出设置）
  * @param onExitApp 取消数据采集授权后终止进程
@@ -92,7 +93,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onExitApp: () -> Unit = {},
     settingsViewModel: SettingsViewModel = viewModel(),
-    backupViewModel: BackupViewModel = viewModel()
+    backupViewModel: BackupViewModel = viewModel(),
+    securityViewModel: com.meapet.mobile.viewmodel.AtRestSecurityViewModel = viewModel()
 ) {
     val state by settingsViewModel.state.collectAsState()
 
@@ -204,6 +206,7 @@ fun SettingsScreen(
                     }
 
                     SettingsPage.DATA -> {
+                        SettingsCard { AtRestSecuritySection(securityViewModel, darkTheme) }
                         SettingsCard { DataSection(backupViewModel) }
                     }
 

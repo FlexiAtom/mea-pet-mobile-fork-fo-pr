@@ -48,9 +48,31 @@ class AtRestMigrator(
     /** 遗留进度（崩溃/被杀后 UI 用来提示"上次转换没走完"）。 */
     fun pendingProgress(): MigrationProgress? = readProgress()
 
-    suspend fun enable(): Int = run(MigrationDirection.ENABLE)
+    suspend fun enable(onStep: (String) -> Unit = {}): Int = run(MigrationDirection.ENABLE, onStep)
 
-    suspend fun disable(): Int = run(MigrationDirection.DISABLE)
+    suspend fun disable(onStep: (String) -> Unit = {}): Int = run(MigrationDirection.DISABLE, onStep)
+
+    /**
+     * 密钥不可解时的明示通道：**旧数据作废**（封形 A 的"故障格"处置，不做第二套密码栈、不假装能救）。
+     * 删掉两路密文文件、清掉解不开的 API Key、关掉总开关、清进度标记。返回作废的条目数。
+     *
+     * 只有调用方拿到用户点名确认后才该走到这里——它不可逆。
+     */
+    suspend fun discardEncryptedData(): Int {
+        var discarded = 0
+        listOf(chatFile, memoryFile).forEach { file ->
+            if (file.isFile && CipherFileFormat.isEncryptedFile(file)) {
+                if (file.delete()) discarded++ else throw MigrationRejectedException("${file.name} 删不动，旧数据仍在盘上")
+            }
+        }
+        if (ValueCipher.isEncoded(apiKeySettings.peekRawStored())) {
+            apiKeySettings.rewriteStored { "" }
+            discarded++
+        }
+        apiKeySettings.atRestEnabled = false
+        runCatching { progressFile().delete() }
+        return discarded
+    }
 
     /** 开关与存量是否一致（不一致=转换被打断过，UI 提示"再应用一次"）。 */
     fun isConsistent(): Boolean {
@@ -69,18 +91,25 @@ class AtRestMigrator(
     private fun matchesValue(stored: String, enabled: Boolean): Boolean =
         stored.isEmpty() || ValueCipher.isEncoded(stored) == enabled
 
+    /** 盘上有没有任何密文形态（文件头或 `k1:` 值）——空操作判据用。 */
+    private fun anythingCipherish(): Boolean =
+        CipherFileFormat.isEncryptedFile(chatFile) ||
+            CipherFileFormat.isEncryptedFile(memoryFile) ||
+            ValueCipher.isEncoded(apiKeySettings.peekRawStored())
+
     // ── 内部 ──────────────────────────────────────────
 
-    private suspend fun run(direction: MigrationDirection): Int {
+    private suspend fun run(direction: MigrationDirection, onStep: (String) -> Unit): Int {
         val progress = readProgress()
         if (progress != null && progress.direction != direction) {
             throw MigrationRejectedException("存在未完成的反向转换（${progress.direction}），先按原方向续传")
         }
-        if (progress == null && direction == MigrationDirection.ENABLE && apiKeySettings.atRestEnabled) {
-            throw MigrationRejectedException("常驻加密已是开启态")
-        }
-        if (progress == null && direction == MigrationDirection.DISABLE && !apiKeySettings.atRestEnabled) {
-            return 0 // 没开过就没有可还原的东西（空操作，不是错误）
+        // 同方向重跑是幂等的（逐文件各归一态），所以"开关已经是这个态"不是拒绝理由——
+        // 不一致收敛（UI 的"再应用一次"）走的就是这条路。只有"关着且盘上没有密文"才是空操作。
+        if (progress == null && direction == MigrationDirection.DISABLE &&
+            !apiKeySettings.atRestEnabled && !anythingCipherish()
+        ) {
+            return 0
         }
         var done = progress?.doneSteps ?: emptySet()
         val steps = if (direction == MigrationDirection.ENABLE) STEPS_ENABLE else STEPS_DISABLE
@@ -93,6 +122,7 @@ class AtRestMigrator(
             runStep(direction, step)
             done += step
             writeProgress(direction, done)
+            onStep(step)
         }
         if (direction == MigrationDirection.ENABLE) {
             // 三路都落密文后才翻；续传时设置步已在 done 集里，这里照样补得上终态
